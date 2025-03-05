@@ -1,0 +1,12 @@
+*.pdf
+*.csv
+*.DS_Store
+*.pyc
+data/barclays/*
+data/boa_cc/*
+data/paypal/*
+data/schwab/*
+ignored-data/*
+ignored-data
+.env
+memoized_results.json
