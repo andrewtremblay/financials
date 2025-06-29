@@ -62,8 +62,12 @@ def read_csv(csv_path):
     """
     Reads data from a CSV file at the given path.
     Returns a pandas DataFrame which can be converted to list
+    or empty DataFrame if the file does not contain any info
     """
-    return pd.read_csv(csv_path)
+    try:
+        return pd.read_csv(csv_path)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
 
 def clean_numeric_amount(value, row):
     try:
@@ -91,39 +95,39 @@ def clean_numeric_amount(value, row):
         return 0
 
 
-# when categorizing, we want to ignore certain categories
+# when categorizing, we want to ignore certain categories so they aren't double counted or miscounted as an expense
+# These categories are never subcategories
 IGNORE_CATEGORY = ["IGNORE", "BANKING", "INTEREST", "INVESTMENT","VENMO_PAYMENT", "CASHOUT", "CREDIT_CARD_PAYMENT", "BANK_TRANSFER"]
 
-# Some categories we want to treat as the same category
-MAP_CATEGORY = {
-    "CAR_RENTAL": "TOURISM", 
-    "TRAVEL": "TOURISM", 
-    "HOTEL": "TOURISM", 
-    "UTILITIES_NATIONAL_GRID": "UTILITIES", 
-    "UTILITIES_WATER": "UTILITIES", 
-    "TAXES_REAL_ESTATE": "TAXES", 
-    "TAXES_VEHICLE": "TAXES", 
-    "MICROSOFT": "SOFTWARE"}
-
 def count_categories(csv_df, data = {}):
+    """
+    Takes a pandas DataFrame (csv_df) with columns for amount and category and updates a dictionary (data) with the total amount for each category.
+    The dictionary is expected to have an additional key "_map" which is a dictionary mapping subcategories to categories.
+    The function returns the updated dictionary.
+    """
+    if "_map" not in data:
+        data["_map"] = {}
     # expected to have an amount column and a category column
     for index, row in csv_df.iterrows():
-        row.category
         category = row.category
         if category in IGNORE_CATEGORY:
             continue
         amount = clean_numeric_amount(row.amount, row)
-        if row.category in MAP_CATEGORY:
-            category = MAP_CATEGORY[row.category]
-        if category in data:
-            data[category] += amount
-        else:
-            data[category] = amount
-        data[category] = round(data[category]) # round to highest number
-    
+        categories = row.category.split(" ")
+        previous_category = None
+        for sub_category in categories:
+            if previous_category is not None: 
+                # map parent category to subcategory
+                data["_map"][sub_category] = previous_category
+            previous_category = sub_category
+            if sub_category in data:
+                data[sub_category] += amount
+            else:
+                data[sub_category] = amount
+            data[sub_category] = round(data[sub_category]) # round to highest number
     return data
 
-def sort_budget(budget_data):
+def sort_budget(budget_data, meta):
     pattern = re.compile(r"(\w+(?: \w+)*) \[(\d+)\](?: (\w+))?")
     parsed_data = [
         (match.group(1), int(match.group(2)), match.group(3) or "")
@@ -131,15 +135,42 @@ def sort_budget(budget_data):
     ]
 
     # Sort the data by the numeric value (amount)
-    sorted_budget = sorted(parsed_data, key=lambda x: x[1])
+    # sorted_budget = sorted(parsed_data, key=lambda x: x[1])
+    # or sort by category & name
+    sorted_budget = sorted(parsed_data, key=lambda x: meta[x[0]] if x[0] in meta else f"{x[0]} {x[1]}")
+
 
     result = ""
     # Print the sorted data
     for item in sorted_budget:
-        result += f"{item[0]} [{item[1]}] {item[2]}\n"
+        if(item[1] == 0):
+            print(f"ERROR: zero value for {item[2]} ({item[0]}): skipping")
+            continue
+        if item[0] == 'Overbudget' or item[2] == 'Savings':
+            # we always append these to the end
+            continue
+        result += f"{fmt_capitalize(item[0])} [{item[1]}] {fmt_capitalize(item[2])}\n"
+    for item in sorted_budget:
+        if item[0] == 'Overbudget' or item[2] == 'Savings':
+            result += f"{fmt_capitalize(item[0])} [{item[1]}] {fmt_capitalize(item[2])}\n"
+            break
+    print('\n\n')
     return result
 
-INCOME_CATEGORIES = ["WAGES", "SALARY", "TAKE_HOME_PAY"]
+INCOME_CATEGORIES = ["WAGES", "QUIZZIAI", "POSH", "SALARY", "TAKE_HOME_PAY"]
+
+
+capitalization_map = {
+    "ATM_WITHDRAWAL": "ATM Withdrawal",
+    "MBTA": "MBTA",
+    "CHATGPT": "ChatGPT",
+} 
+
+def fmt_capitalize(with_underscores):
+    if with_underscores in capitalization_map:
+        return capitalization_map[with_underscores]
+    words = with_underscores.split("_")
+    return " ".join(word.capitalize() for word in words)
 
 # Outputs all categories as a sankeymatic string
 # WAGES is a special category that we feed into budget
@@ -152,30 +183,41 @@ def fmt_sankeymatic(data):
     Budget [450] Taxes
     Budget [420] Housing
     Budget [400] Food
-    Budget [295] Transportation
+    Budget [295] Fun 
     Budget [25] Savings
+    Fun [25] Theater
     """
     # calcaulate wages total
     wages_total = 0
     total_expenses = 0
-    for category, amount in data.items():
-        if category in INCOME_CATEGORIES:
-            wages_total += amount
-        else:
-            total_expenses += amount
-
+    subcategories = data['_map'].keys()
+    
     sankeymatic_str = ""    
     for category, amount in data.items():
+        if category in ['_map'] or category in subcategories:
+            continue
+        if category in INCOME_CATEGORIES:
+            wages_total += amount
         if category not in INCOME_CATEGORIES:
+            total_expenses += amount
             sankeymatic_str += f"Budget [{amount}] {category}\n"
     sankeymatic_str += "\n"
-    sankeymatic_str += "\n"
+    # Add overspending as an expense if we overspent
     if total_expenses > wages_total:
-        sankeymatic_str += f"\nOther Income [{total_expenses - wages_total}] Budget\n"
+        sankeymatic_str += f"\nOverspending [{total_expenses - wages_total}] Budget\n"
+    # Add savings if we didn't overspend
     if total_expenses < wages_total:
         sankeymatic_str += f"\nBudget [{wages_total - total_expenses}] Savings\n"
     sankeymatic_str += f"\nWages [{wages_total}] Budget\n"
-    return sort_budget(sankeymatic_str)
+    # go through the subcategories in _map
+    if '_map' in data:
+        for subcategory, category in data['_map'].items():
+            if subcategory in data:
+                if subcategory in INCOME_CATEGORIES:
+                    sankeymatic_str += f"\n{subcategory} [{data[subcategory]}] {category}\n"
+                else: 
+                    sankeymatic_str += f"\n{category} [{data[subcategory]}] {subcategory}\n"
+    return sort_budget(sankeymatic_str, data['_map'])
 
 
 
