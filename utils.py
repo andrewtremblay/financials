@@ -1,30 +1,46 @@
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_core.documents import Document
+from docling.document_converter import DocumentConverter
 from langchain_core.output_parsers import StrOutputParser
 import pandas as pd
 import re
 import os
 import glob
 import math
-from pprint import pprint 
+from pprint import pprint
+
+from memo import memoize_dataframe_to_file 
+
+@memoize_dataframe_to_file
+def load_pdf_as_dataframes(pdf_path: str) -> list[pd.DataFrame]: 
+    print(f"Reading file '{pdf_path}'")    
+    dataframes: list[pd.DataFrame] = []
+    converter = DocumentConverter()
+    conv_res = converter.convert(pdf_path)
+    for table_ix, table in enumerate(conv_res.document.tables):
+        table_df: pd.DataFrame = table.export_to_dataframe()
+        full_table_text = table_df.to_markdown().lower()
+        if(("date" in full_table_text or "activity posted" in full_table_text)
+           and "description" in full_table_text 
+           and ("amount" in full_table_text 
+                or "total" in full_table_text 
+                or "net" in full_table_text
+                or 'balance' in full_table_text)):
+            dataframes.append(table_df)
+        else:
+            print(f"Skipping table {table_ix} (invalid columns):\n {full_table_text[0:100]}...")
+    return dataframes
 
 
-def load_pdf(pdf_path):
+def load_pdf(pdf_path) -> list[Document]:
     """
-    Loads a PDF file and returns its content as a list of documents.
-
-    Args:
-        pdf_path (str): The path to the PDF file to be loaded.
-
-    Returns:
-        list: A list of documents extracted from the PDF file.
+    Loads a PDF file and returns its content as PyPDFLoader documents.
     """
-
-    print(f"Reading file '{pdf_path}'")
     loader = PyPDFLoader(pdf_path)
     documents = loader.load()
     return documents
 
-def all_files_with_extensions(folder_path, extensions):
+def all_files_with_extensions(folder_path: str, extensions: list[str]) -> list[str]:
     all_files = []
     for ext in extensions:
         files = glob.glob(os.path.join(folder_path,ext))
@@ -32,18 +48,18 @@ def all_files_with_extensions(folder_path, extensions):
     return all_files
 
 
-def all_pdfs_in_folder(folder_path):
+def all_pdfs_in_folder(folder_path) -> list[str]:
     # Use glob to find all PDF files in the folder
     # Sometimes PDFs have capitalized extensions
     return all_files_with_extensions(folder_path, ['*.pdf', '*.PDF'])
 
-def all_csvs_in_folder(folder_path):
+def all_csvs_in_folder(folder_path) -> list[str]:
     # Use glob to find all csv files in the folder
     return all_files_with_extensions(folder_path, ['*.csv'])
 
 
 
-def export_to_csv(data, output_path):
+def export_to_csv(data: dict, output_path: str) -> None:
     """
     Exports data to a CSV file at the given path.
 
@@ -56,9 +72,9 @@ def export_to_csv(data, output_path):
     """
     df = pd.DataFrame(data)
     df.to_csv(output_path, index=False)
-    print(f"Data exported to {output_path}")
+    # print(f"Data exported to {output_path}")
 
-def read_csv(csv_path):
+def read_csv(csv_path: str):
     """
     Reads data from a CSV file at the given path.
     Returns a pandas DataFrame which can be converted to list
@@ -69,7 +85,7 @@ def read_csv(csv_path):
     except pd.errors.EmptyDataError:
         return pd.DataFrame()
 
-def clean_numeric_amount(value, row):
+def clean_numeric_amount(value: any, row: pd.Series):
     try:
         if isinstance(value, str):
              # Handle non-string values
@@ -99,7 +115,7 @@ def clean_numeric_amount(value, row):
 # These categories are never subcategories
 IGNORE_CATEGORY = ["IGNORE", "BANKING", "INTEREST", "INVESTMENT","VENMO_PAYMENT", "CASHOUT", "CREDIT_CARD_PAYMENT", "BANK_TRANSFER"]
 
-def count_categories(csv_df, data = {}):
+def count_categories(csv_df: pd.DataFrame, data: dict = {}):
     """
     Takes a pandas DataFrame (csv_df) with columns for amount and category and updates a dictionary (data) with the total amount for each category.
     The dictionary is expected to have an additional key "_map" which is a dictionary mapping subcategories to categories.
@@ -127,7 +143,7 @@ def count_categories(csv_df, data = {}):
             data[sub_category] = round(data[sub_category]) # round to highest number
     return data
 
-def sort_budget(budget_data, meta):
+def sort_budget(budget_data: list, meta: dict):
     pattern = re.compile(r"(\w+(?: \w+)*) \[(\d+)\](?: (\w+))?")
     parsed_data = [
         (match.group(1), int(match.group(2)), match.group(3) or "")
@@ -166,7 +182,7 @@ capitalization_map = {
     "CHATGPT": "ChatGPT",
 } 
 
-def fmt_capitalize(with_underscores):
+def fmt_capitalize(with_underscores: str):
     if with_underscores in capitalization_map:
         return capitalization_map[with_underscores]
     words = with_underscores.split("_")
@@ -175,7 +191,7 @@ def fmt_capitalize(with_underscores):
 # Outputs all categories as a sankeymatic string
 # WAGES is a special category that we feed into budget
 # All other categories are considered expenses coming out of budget
-def fmt_sankeymatic(data):
+def fmt_sankeymatic(data: dict):
     """   
     Wages [1500] Budget
     Other [250] Budget
@@ -212,10 +228,10 @@ def fmt_sankeymatic(data):
     # go through the subcategories in _map
     if '_map' in data:
         for subcategory, category in data['_map'].items():
-            if subcategory in data:
+            if subcategory in data and data[subcategory] != 0:
                 if subcategory in INCOME_CATEGORIES:
                     sankeymatic_str += f"\n{subcategory} [{data[subcategory]}] {category}\n"
-                else: 
+                else:
                     sankeymatic_str += f"\n{category} [{data[subcategory]}] {subcategory}\n"
     return sort_budget(sankeymatic_str, data['_map'])
 
@@ -234,7 +250,7 @@ CATEGORY_SINGLE_WORD = "Categories must be single words whenver possible and as 
 CATEGORY_UPPERCASE = "Categories must be in UPPERCASE. "
 
 
-def extract_date_and_amount_from_transaction(text):
+def extract_date_and_amount_from_transaction(text: str):
     """
     Extracts the date and amount from a transaction string.
 
@@ -255,7 +271,7 @@ def extract_date_and_amount_from_transaction(text):
     return None
 
 
-def check_categorized_data(categorized_data):
+def check_categorized_data(categorized_data: list[dict]):
     """
     Checks if any transactions in the categorized data need human input.
 
@@ -268,12 +284,12 @@ def check_categorized_data(categorized_data):
     """
     input_needed_data = list(filter(lambda x: x['category'] == 'INPUT NEEDED', categorized_data))
     if len(input_needed_data) > 0:
-        print(f'Input needed for {len(input_needed_data)} transactions')
+        # print(f'Input needed for {len(input_needed_data)} transactions')
         for datum in input_needed_data:
             pprint(datum)
         return input_needed_data
     else: 
-        print(f'Confidently categorized all {len(categorized_data)} transactions')
+        # print(f'Confidently categorized all {len(categorized_data)} transactions')
         return None
 
 

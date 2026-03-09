@@ -1,6 +1,7 @@
 from memo import memoized_invoke_chain_transaction
 from utils import CATEGORY_PROMPT, TRANSACTION_PARAM, UNCERTAINTY, ONLY_PRINT_CATEGORY, CATEGORY_SINGLE_WORD, CATEGORY_UPPERCASE, output_parser, extract_date_and_amount_from_transaction
 from langchain_core.prompts import PromptTemplate
+from langchain_core.documents import Document
 import re
 
 
@@ -22,7 +23,7 @@ paypal_prompt = PromptTemplate.from_template(CATEGORY_PROMPT
 
 
 
-def extract_paypal_transactions(documents):
+def extract_paypal_transactions(documents: list[Document]) -> list[str]:
     transactions = []
     for page in documents:
         text = page.page_content
@@ -68,13 +69,13 @@ def convert_paypal_extract_description(text):
     return ""
 
 
-def categorize_paypal(model, transactions):
+def categorize_paypal(model: any, transactions: list[str]) -> list[dict]:
     chain = paypal_prompt | model | output_parser
 
     categorized_data = []
     for transaction in transactions:
-        description = convert_paypal_extract_description(transaction)
-        category = memoized_invoke_chain_transaction(chain, description)
+        transaction_description = convert_paypal_extract_description(transaction)
+        category = memoized_invoke_chain_transaction(chain, transaction_description)
         # unmemoized result:
         # category = chain.invoke({
         #     "transaction": description,
@@ -85,6 +86,6 @@ def categorize_paypal(model, transactions):
             categorized_data.append({"raw_transaction": transaction, "description": transaction_description, "category": category})
         else:
             # extracted result regext had the proper format
-            categorized_data.append({"raw_transaction": transaction, "description": description, "date": extracted[0], "amount": extracted[2], "category": category})
+            categorized_data.append({"raw_transaction": transaction, "description": transaction_description, "date": extracted[0], "amount": extracted[2], "category": category})
 
     return categorized_data

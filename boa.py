@@ -1,6 +1,7 @@
 from memo import memoized_invoke_chain_transaction
 from utils import CATEGORY_PROMPT, TRANSACTION_PARAM, UNCERTAINTY, ONLY_PRINT_CATEGORY, CATEGORY_SINGLE_WORD, CATEGORY_UPPERCASE, output_parser, extract_date_and_amount_from_transaction
 from langchain_core.prompts import PromptTemplate
+from langchain_core.documents import Document
 import re
 
 
@@ -70,7 +71,7 @@ def convert_boa_total_purchases_to_newlines(text):
 
 def convert_boa_purchases_and_adjustments_to_newlines(text):
     return re.sub(BOA_PURCHASES_AND_ADJUSTMENTS, "\n" + BOA_PURCHASES_AND_ADJUSTMENTS + "\n", text)
-def extract_boa_transactions(documents):
+def extract_boa_transactions(documents: list[Document]) -> list[str]:
     transactions = []
     for page in documents:
         text = page.page_content
@@ -103,7 +104,7 @@ def extract_boa_transactions(documents):
     return transactions
 
 
-def categorize_boa(model, transactions):
+def categorize_boa(model: any, transactions: list[str]) -> list[dict]:
     chain = boa_prompt | model | output_parser
 
     categorized_data = []
