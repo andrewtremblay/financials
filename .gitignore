@@ -10,3 +10,6 @@ ignored-data/*
 ignored-data
 .env
 memoized_results.json
+memoized_dataframes.json
+memoized_files_to_dataframes.json
+memoized_descriptions_to_categories.json

@@ -1,6 +1,7 @@
 from memo import memoized_invoke_chain_transaction
 from utils import CATEGORY_PROMPT, TRANSACTION_PARAM, UNCERTAINTY, ONLY_PRINT_CATEGORY, CATEGORY_SINGLE_WORD, CATEGORY_UPPERCASE,  output_parser, extract_date_and_amount_from_transaction
 from langchain_core.prompts import PromptTemplate
+from langchain_core.documents import Document
 import re
 from pprint import pprint
 
@@ -51,7 +52,7 @@ def process_transaction(transaction):
     return convert_schwab_remove_running_total(remove_newlines(transaction.strip())).strip()
 
 
-def extract_schwab_transactions(documents):
+def extract_schwab_transactions(documents: list[Document]) -> list[str]:
     """
     Take a list of Document objects, each representing a page of text,
     and return two lists: the first list contains income transactions
@@ -135,7 +136,7 @@ def convert_schwab_extract_description(text):
     return re.sub(r"\d{6}", "", re.sub(r"^\d{2}/\d{2} |\s\$[\d,.-]+\.\d{2}$", "", text.strip())).strip()
 
 
-def categorize_schwab(model, transactions):
+def categorize_schwab(model: any, transactions: list[str]) -> list[dict]:
     chain = schwab_prompt | model | output_parser
 
     categorized_data = []
