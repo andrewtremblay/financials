@@ -124,7 +124,7 @@ def count_categories(csv_df: pd.DataFrame, data: dict = {}):
     if "_map" not in data:
         data["_map"] = {}
     # expected to have an amount column and a category column
-    for index, row in csv_df.iterrows():
+    for _, row in csv_df.iterrows():
         category = row.category
         if category in IGNORE_CATEGORY:
             continue
@@ -173,7 +173,7 @@ def sort_budget(budget_data: list, meta: dict):
     print('\n\n')
     return result
 
-INCOME_CATEGORIES = ["WAGES", "QUIZZIAI", "POSH", "SALARY", "TAKE_HOME_PAY"]
+INCOME_CATEGORIES = ["WAGES", "INCOME", "ZUS", "ZUS_CREDIT", "SALARY", "TAKE_HOME_PAY"]
 
 
 capitalization_map = {
@@ -206,34 +206,71 @@ def fmt_sankeymatic(data: dict):
     # calcaulate wages total
     wages_total = 0
     total_expenses = 0
-    subcategories = data['_map'].keys()
     
-    sankeymatic_str = ""    
+    data = dict(data)  # don't mutate caller's dict
+    subcategories = dict()
+    if '_map' in data:
+        subcategories = data.pop('_map')
+        
+    # Expense parent nodes: categories that are values in _map (have sub-categories flowing out)
+    # Compute how much of each parent's total is already accounted for by its subcategories.
+    # Any remainder is a "direct" spend on the parent itself (no sub-category assigned).
+    expense_sub_totals = {}  # parent -> sum of subcategory amounts
+    for sub, parent in subcategories.items():
+        if parent not in INCOME_CATEGORIES and sub in data:
+            expense_sub_totals[parent] = expense_sub_totals.get(parent, 0) + data[sub]
+
+    sankeymatic_str = ""
     for category, amount in data.items():
-        if category in ['_map'] or category in subcategories:
+        if category in subcategories.keys():
+            print(f"Skipping subcategory {category}")
             continue
-        if category in INCOME_CATEGORIES:
+        print(f"Processing category {category} with amount {amount}")
+        if category in INCOME_CATEGORIES and amount != 0:
             wages_total += amount
-        if category not in INCOME_CATEGORIES:
-            total_expenses += amount
-            sankeymatic_str += f"Budget [{amount}] {category}\n"
-    sankeymatic_str += "\n"
-    # Add overspending as an expense if we overspent
+            # Suppress only the WAGES→Wages self-loop; all other income categories
+            # (including aggregators like ZUS) should still emit a flow into Wages.
+            if fmt_capitalize(category) != "Wages":
+                sankeymatic_str += f"{category} [{amount}] Wages\n"
+        else:
+            if amount <= 0:
+                # Negative/zero net amounts (refunds that exceed purchases) would be dropped
+                # by sort_budget's positive-integer regex, silently inflating savings.
+                # Skip them entirely so total_expenses stays in sync with Sankey output.
+                print(f"Skipping non-positive expense {category}: {amount}")
+                continue
+            # For parent nodes, sum their registered subcategories instead of
+            # relying on the accumulated data value, so Budget flows are always
+            # grounded in the actual sub-category hierarchy.
+            effective = expense_sub_totals.get(category, amount)
+            total_expenses += effective
+            sankeymatic_str += f"Budget [{effective}] {category}\n"
+    sankeymatic_str += "\n\n # TOTALS"
+    sankeymatic_str += f"\nWages [{wages_total}] Budget\n"
+    # Both savings and overspending are outflows from Budget (right side),
+    # keeping Budget's left side as income only.
     if total_expenses > wages_total:
-        sankeymatic_str += f"\nOverspending [{total_expenses - wages_total}] Budget\n"
-    # Add savings if we didn't overspend
+        sankeymatic_str += f"\nBudget [{total_expenses - wages_total}] Overspending\n"
     if total_expenses < wages_total:
         sankeymatic_str += f"\nBudget [{wages_total - total_expenses}] Savings\n"
-    sankeymatic_str += f"\nWages [{wages_total}] Budget\n"
     # go through the subcategories in _map
-    if '_map' in data:
-        for subcategory, category in data['_map'].items():
-            if subcategory in data and data[subcategory] != 0:
-                if subcategory in INCOME_CATEGORIES:
-                    sankeymatic_str += f"\n{subcategory} [{data[subcategory]}] {category}\n"
-                else:
-                    sankeymatic_str += f"\n{category} [{data[subcategory]}] {subcategory}\n"
-    return sort_budget(sankeymatic_str, data['_map'])
+    for subcategory, category in subcategories.items():
+        if subcategory in data and data[subcategory] != 0:
+            if category in INCOME_CATEGORIES:
+                # Sub is a paycheck source flowing INTO an income aggregator (e.g. ZUS)
+                sankeymatic_str += f"\n{subcategory} [{data[subcategory]}] {category}\n"
+            else:
+                sankeymatic_str += f"\n{category} [{data[subcategory]}] {subcategory}\n"
+    # For expense parent nodes, emit a "direct" flow for any spend that has no sub-category.
+    # This keeps the Needs/Wants nodes balanced (inflow == outflow), analogous to Wages.
+    # Use underscore suffix so sort_budget's single-word regex captures it correctly
+    # (fmt_capitalize will render NEEDS_DIRECT → "Needs Direct").
+    for parent, sub_total in expense_sub_totals.items():
+        if parent in data:
+            direct = data[parent] - sub_total
+            if direct > 0:
+                sankeymatic_str += f"\n{parent} [{direct}] {parent}_DIRECT\n"
+    return sort_budget(sankeymatic_str, subcategories)
 
 
 

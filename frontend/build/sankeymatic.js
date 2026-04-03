@@ -95,7 +95,7 @@ Requires:,
         return `${pctS}%`;
       }
       return `<span class="invis">${"0".repeat(
-        3 - pctS.length
+        3 - pctS.length,
       )}</span>${pctS}%`;
     }
 
@@ -111,7 +111,7 @@ Requires:,
         oEl.textContent = "Same size";
       } else {
         oEl.innerHTML = `${padPercent(200 - fldValAsNum)} — ${padPercent(
-          fldValAsNum
+          fldValAsNum,
         )}`;
       }
       return null;
@@ -303,7 +303,7 @@ Requires:,
   function formatUserData(numberIn, nStyle) {
     const nString = updateMarks(
       d3.format(`,.${nStyle.decimalPlaces}${nStyle.trimString}f`)(numberIn),
-      nStyle.marks
+      nStyle.marks,
     );
     return `${nStyle.prefix}${nString}${nStyle.suffix}`;
   }
@@ -317,7 +317,7 @@ Requires:,
     svgEl.setAttribute("width", cfg.size_w);
     svgEl.setAttribute(
       "class",
-      `svg_background_${cfg.bg_transparent ? "transparent" : "default"}`
+      `svg_background_${cfg.bg_transparent ? "transparent" : "default"}`,
     );
     svgEl.textContent = ""; // Someday use replaceChildren() instead
   }
@@ -384,7 +384,7 @@ Requires:,
     const [size, pngURL] = scaledPNG(scale);
     downloadADataURL(
       pngURL,
-      `sankeymatic_${glob.fileTimestamp()}_${size.w}x${size.h}.png`
+      `sankeymatic_${glob.fileTimestamp()}_${size.w}x${size.h}.png`,
     );
   };
 
@@ -401,14 +401,14 @@ Requires:,
   glob.saveDiagramAsSVG = () => {
     // Make a copy of the true SVG & make a few cosmetic changes:
     const svgForExport = el("sankey_svg")
-      .outerHTML// Take out the id and the class declaration for the background:
+      .outerHTML // Take out the id and the class declaration for the background:
       .replace(' id="sankey_svg"', "")
       .replace(/ class="svg_background_[a-z]+"/, "")
       // Add a title placeholder & credit comment after the FIRST tag:
       .replace(
         />/,
         ">\r\n<title>Your Diagram Title</title>\r\n" +
-          `<!-- Generated with SankeyMATIC: ${glob.humanTimestamp()} -->\r\n`
+          `<!-- Generated with SankeyMATIC: ${glob.humanTimestamp()} -->\r\n`,
       )
       // Add some line breaks to highlight where [g]roups start/end
       // and where each path/text/rect begins:
@@ -769,7 +769,7 @@ Requires:,
       // (This shouldn't happen unless the user is messing around in the DOM)
       msg.add(
         `Requested sample diagram ${highlightSafeValue(graphName)} not found.`,
-        "issue"
+        "issue",
       );
       return null;
     }
@@ -784,7 +784,7 @@ Requires:,
     // diagrams.
     const userInputs = elV(userInputsField),
       inputsMatchAnySample = Array.from(sampleDiagramRecipes.values()).some(
-        (r) => r.flows === userInputs
+        (r) => r.flows === userInputs,
       );
 
     if (inputsMatchAnySample || userInputs === "") {
@@ -794,9 +794,8 @@ Requires:,
     } else {
       // Show the warning and do NOT replace the graph:
       el("replace_graph_warning").style.display = "";
-      el(
-        "replace_graph_yes"
-      ).textContent = `Yes, replace the graph with '${savedRecipe.name}'`;
+      el("replace_graph_yes").textContent =
+        `Yes, replace the graph with '${savedRecipe.name}'`;
     }
 
     return null;
@@ -1268,10 +1267,10 @@ Requires:,
         graphH = cfg.size_h - cfg.margin_t - cfg.margin_b,
         lastStage = stagesArr.length - 1,
         labelsBeforeFirst = stagesArr[0].filter(
-          (n) => n.label?.anchor === "end"
+          (n) => n.label?.anchor === "end",
         ),
         labelsAfterLast = stagesArr[lastStage].filter(
-          (n) => n.label?.anchor === "start"
+          (n) => n.label?.anchor === "start",
         ),
         // If any labels are BEFORE stage 0, get its maxLabelWidth:
         leadingW =
@@ -1336,7 +1335,7 @@ Requires:,
           ? [cfg.node_color] // (User wants just one color)
           : rotateColors(
               approvedColorTheme(cfg.node_theme).colorset,
-              cfg[offsetField(cfg.node_theme)]
+              cfg[offsetField(cfg.node_theme)],
             ),
       colorScaleFn = d3.scaleOrdinal(userColorArray),
       // Drawing curves with curvature of <= 0.1 looks bad and produces visual
@@ -1434,7 +1433,7 @@ Requires:,
     allFlows.filter(shadowFilter).forEach((f) => {
       f.dom_id = `flow${f.index}`; // flow0, flow1...
       f.tooltip = `${f.source.tipname} → ${f.target.tipname}: ${withUnits(
-        f.value
+        f.value,
       )}`;
       // Fill in any missing opacity values and the 'hover' counterparts:
       f.opacity = f.opacity || cfg.flow_opacity;
@@ -1514,7 +1513,7 @@ Requires:,
       .append("g")
       .attr(
         "transform",
-        `translate(${ep(graph.final_margin_l)},${ep(cfg.margin_t)})`
+        `translate(${ep(graph.final_margin_l)},${ep(cfg.margin_t)})`,
       );
 
     // MARK Functions for Flow hover effects
@@ -1593,11 +1592,11 @@ Requires:,
       // Apply the move to the node (halting at the edges of the graph):
       n.x = Math.max(
         0,
-        Math.min(availableW, n.origPos.x + availableW * myXMove)
+        Math.min(availableW, n.origPos.x + availableW * myXMove),
       );
       n.y = Math.max(
         0,
-        Math.min(availableH, n.origPos.y + availableH * n.move[1])
+        Math.min(availableH, n.origPos.y + availableH * n.move[1]),
       );
 
       // Find everything which shares the class of the dragged Node and
@@ -1609,7 +1608,7 @@ Requires:,
         "transform",
         isAZeroMove(n.move)
           ? null
-          : `translate(${ep(n.x - n.origPos.x)},${ep(n.y - n.origPos.y)})`
+          : `translate(${ep(n.x - n.origPos.x)},${ep(n.y - n.origPos.y)})`,
       );
     }
 
@@ -1688,7 +1687,7 @@ Requires:,
         .attr(
           "d",
           `M0 ${ep(n.lastPos.y)} h${ep(graph.w)} m0 ${ep(n.dy)} H0` +
-            `M${ep(n.lastPos.x)} 0 v${ep(graph.h)} m${ep(n.dx)} 0 V0`
+            `M${ep(n.lastPos.x)} 0 v${ep(graph.h)} m${ep(n.dx)} 0 V0`,
         )
         .attr("stroke", grayColor)
         .attr("stroke-width", 1)
@@ -1822,7 +1821,7 @@ Requires:,
           .drag()
           .on("start", dragNodeStarted)
           .on("drag", draggingNode)
-          .on("end", dragNodeEnded)
+          .on("end", dragNodeEnded),
       )
       .on("dblclick", doubleClickNode);
 
@@ -1866,12 +1865,12 @@ Requires:,
       .attr("font-family", cfg.labels_fontface)
       .attr("font-size", `${ep(cfg.labelname_size)}px`)
       .attr("fill", cfg.labels_color);
-    if (cfg.meta_mentionsankeymatic) {
+    if (cfg.meta_mentionwebsite) {
       // Style the mention appropriately given the size of the canvas/text:
       const mSize = Math.max(
           12,
           cfg.labelname_size / 2,
-          Math.cbrt(graph.h) + 3
+          Math.cbrt(graph.h) + 3,
         ),
         mMargin = Math.round(mSize / 2) - 1,
         mColor =
@@ -1890,7 +1889,7 @@ Requires:,
         .attr("font-size", `${ep(mSize)}px`)
         .attr("font-weight", "400")
         .attr("fill", mColor)
-        .text("Made at SankeyMATIC.com");
+        .text("Made at andrew-tremblay.com");
     }
 
     if (!cfg.labels_hide && (cfg.labelname_appears || cfg.labelvalue_appears)) {
@@ -1918,7 +1917,7 @@ Requires:,
             d3.select(this),
             n.labelList.slice(1),
             n.labelList[0].size,
-            n.label.x
+            n.label.x,
           );
         });
 
@@ -2000,7 +1999,7 @@ Requires:,
               sourceURLLine,
               movesMarker,
             ].includes(l)
-          )
+          ),
       )
       .join("\n")
       .replace(/^\n+/, "") // trim blank lines at the start & end
@@ -2045,7 +2044,7 @@ Requires:,
       sourceURLLine,
       "",
       userDataMarker,
-      ""
+      "",
     );
     add(removeAutoLines(elV(userInputsField).split("\n")));
     addIfV("", settingsMarker, "");
@@ -2089,7 +2088,7 @@ Requires:,
       currentUrl = new URL(glob.location.href);
     // Set the new parameter, encoded to keep it from wrapping strangely:
     currentUrl.search = `${urlInputsParam}=${encodeURIComponent(
-      compressed
+      compressed,
     ).replaceAll("-", "%2D")}`;
     return currentUrl;
   }
@@ -2100,7 +2099,7 @@ Requires:,
     const verboseDiagramDef = getDiagramDefinition(true);
     downloadATextFile(
       verboseDiagramDef,
-      `sankeymatic_${glob.fileTimestamp()}_source.txt`
+      `sankeymatic_${glob.fileTimestamp()}_source.txt`,
     );
   };
 
@@ -2161,7 +2160,7 @@ Requires:,
     const searchString = glob.location?.search;
     if (searchString) {
       const compressedInputs = new URLSearchParams(searchString)?.get(
-        urlInputsParam
+        urlInputsParam,
       );
       if (compressedInputs) {
         const expandedInputs =
@@ -2174,9 +2173,9 @@ Requires:,
           // Tell the user something went wrong:
           msg.addToQueue(
             `The input string provided in the URL (${highlightSafeValue(
-              `${compressedInputs.substring(0, 8)}...`
+              `${compressedInputs.substring(0, 8)}...`,
             )}) was not decodable.`,
-            "issue"
+            "issue",
           );
         }
       }
@@ -2318,7 +2317,7 @@ Requires:,
           .trim()
           .replace(/^\u200B+/, "")
           .replace(/\u200B+$/, "")
-          .trim()
+          .trim(),
       ),
       invalidLines = [], // contains objects with a 'value' and 'message'
       linesWithSettings = new Set(),
@@ -2395,7 +2394,7 @@ Requires:,
             [validValue, finalValue] = settingIsValid(
               settingData,
               settingValue,
-              sizeObj
+              sizeObj,
             );
           if (validValue) {
             setValueOnPage(settingName, dataType, finalValue);
@@ -2405,7 +2404,7 @@ Requires:,
           // The setting exists but the value wasn't right:
           warnAbout(
             settingValue,
-            `Invalid value for <strong>${origSettingName}<strong>`
+            `Invalid value for <strong>${origSettingName}<strong>`,
           );
         } else {
           // There wasn't a setting matching this name:
@@ -2423,7 +2422,7 @@ Requires:,
       reFlowLine = new RegExp(
         "^(?<sourceNode>.+)" +
           `\\[(?<amount>[\\d\\s.+-]+|\\${SYM_USE_REMAINDER}|\\${SYM_FILL_MISSING}|)\\]` +
-          "(?<targetNodePlus>.+)$"
+          "(?<targetNodePlus>.+)$",
       );
 
     /**
@@ -2468,8 +2467,8 @@ Requires:,
           if (amountIn === "") {
             msg.log(
               `<span class="info_text">Skipped empty flow:</span> ${escapeHTML(
-                lineIn
-              )}`
+                lineIn,
+              )}`,
             );
             return;
           }
@@ -2479,7 +2478,7 @@ Requires:,
           if (!isNumeric(amountIn) && !isCalculated) {
             warnAbout(
               lineIn,
-              `The [Amount] must be a number in the form #.# or a wildcard ("${SYM_USE_REMAINDER}" or "${SYM_FILL_MISSING}").`
+              `The [Amount] must be a number in the form #.# or a wildcard ("${SYM_USE_REMAINDER}" or "${SYM_FILL_MISSING}").`,
             );
             return;
           }
@@ -2504,7 +2503,7 @@ Requires:,
           // checking operations (& display) later:
           maxDecimalPlaces = Math.max(
             maxDecimalPlaces,
-            (amountIn.split(".")[1] || "").length
+            (amountIn.split(".")[1] || "").length,
           );
           return;
         }
@@ -2512,7 +2511,7 @@ Requires:,
         // This is a non-blank line which did not match any pattern:
         warnAbout(
           lineIn,
-          "Does not match the format of a Flow or Node or Setting"
+          "Does not match the format of a Flow or Node or Setting",
         );
       });
 
@@ -2523,7 +2522,7 @@ Requires:,
     invalidLines.forEach((parsingError) => {
       msg.add(
         `${parsingError.message}: ${highlightSafeValue(parsingError.value)}`,
-        "issue"
+        "issue",
       );
     });
 
@@ -2647,8 +2646,8 @@ Requires:,
           (af) =>
             !flowIsCalculated(af.value) &&
             [af[k.arriving.node].name, af[k.leaving.node].name].includes(
-              parentN.name
-            )
+              parentN.name,
+            ),
         )
         .forEach((af) => {
           if (parentN.name === af[k.arriving.node].name) {
@@ -2667,8 +2666,8 @@ Requires:,
       queueOfFlows.delete(ef);
       msg.log(
         `<span class="info_text">Calculated:</span> ${escapeHTML(
-          `${ef.source.tipname} [${ef.operation}] ${ef.target.tipname}`
-        )} = <span class="calced">${ep(ef.value)}</span>${unknownMsg}`
+          `${ef.source.tipname} [${ef.operation}] ${ef.target.tipname}`,
+        )} = <span class="calced">${ep(ef.value)}</span>${unknownMsg}`,
       );
     }
 
@@ -2701,7 +2700,9 @@ Requires:,
             : 0;
         parentUnknowns.set(
           f,
-          parentN.unknowns[IN].size + parentN.unknowns[OUT].size + f.terminalAdj
+          parentN.unknowns[IN].size +
+            parentN.unknowns[OUT].size +
+            f.terminalAdj,
         );
       });
       // Helpful for debugging - Array.from(parentUnknowns).sort((a, b) => a[1] - b[1])
@@ -2714,7 +2715,7 @@ Requires:,
       const sortedFlows = Array.from(queueOfFlows.values()).sort(
         (a, b) =>
           parentUnknowns.get(a) - parentUnknowns.get(b) ||
-          a.sourceRow - b.sourceRow
+          a.sourceRow - b.sourceRow,
       );
 
       // Are there _any_ flows with a single unknown? (If so, they'll be
@@ -2732,7 +2733,7 @@ Requires:,
         msg.logOnce(
           "warnAboutAmbiguousFlows",
           "<em>Note: Beyond this point, some flow amounts depended on multiple unknown values.<br>" +
-            "They will be resolved in the order of fewest unknowns + their order in the input data.</em>"
+            "They will be resolved in the order of fewest unknowns + their order in the input data.</em>",
         );
         // (We do that first because the very next console msg will mention unknowns)
         resolveEligibleFlow(sortedFlows[0]);
@@ -2805,7 +2806,7 @@ Requires:,
     // comment it again).
     // Use origSourceLines so that any original indentation is preserved:
     const updatedSourceLines = origSourceLines.map((l, i) =>
-      linesWithValidSettings.has(i) ? `${settingsAppliedPrefix}${l}` : l
+      linesWithValidSettings.has(i) ? `${settingsAppliedPrefix}${l}` : l,
     );
 
     // Having processed all the lines now -- if the current inputs came from a
@@ -2826,7 +2827,7 @@ Requires:,
     if (!goodFlows.length) {
       msg.add(
         "Enter a list of Flows &mdash; one per line. " +
-          'See the <a href="/manual/" target="_blank">Manual</a> for more help.'
+          'See the <a href="/manual/" target="_blank">Manual</a> for more help.',
       );
 
       // Clear the contents of the graph in case there was an old graph left
@@ -2954,7 +2955,7 @@ Requires:,
     });
     el("imbalances_area").setAttribute(
       "aria-disabled",
-      disableDifferenceControls.toString()
+      disableDifferenceControls.toString(),
     );
 
     // Were there any differences, and does the user want to know?
@@ -2969,12 +2970,12 @@ Requires:,
           `<tr><td class="nodename">${escapeHTML(diffRec.name)}</td>` +
             `<td>${diffRec.total[IN]}</td>` +
             `<td>${diffRec.total[OUT]}</td>` +
-            `<td>${diffRec.difference}</td></tr>`
+            `<td>${diffRec.difference}</td></tr>`,
         );
       });
       msg.add(
         `<table class="center_basic">${differenceRows.join("\n")}</table>`,
-        "difference"
+        "difference",
       );
     }
 
@@ -3001,18 +3002,18 @@ Requires:,
     // Now that the SVG code has been generated, figure out this diagram's
     // Scale & make that available to the user:
     const tallestNodeHeight = parseFloat(
-        el(`r${maxNodeIndex}`).getAttributeNS(null, "height")
+        el(`r${maxNodeIndex}`).getAttributeNS(null, "height"),
       ),
       // Use 1 decimal place to describe the tallest node's height:
       formattedPixelCount = updateMarks(
         d3.format(",.1f")(tallestNodeHeight),
-        numberStyle.marks
+        numberStyle.marks,
       ),
       // Show this value using the user's units, but override the number of
       // decimal places to show 4 digits of precision:
       unitsPerPixel = formatUserData(
         maxNodeVal / (tallestNodeHeight || Number.MIN_VALUE),
-        { ...numberStyle, decimalPlaces: 4 }
+        { ...numberStyle, decimalPlaces: 4 },
       );
     el("scale_figures").innerHTML =
       `<strong>${unitsPerPixel}</strong> per pixel ` +
