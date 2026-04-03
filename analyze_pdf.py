@@ -15,6 +15,18 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+def month_name_to_number(month: str) -> str:
+    """Converts a month abbreviation (e.g. 'jan') to a date prefix (e.g. '01/')."""
+    prefixes = {
+        "jan": "01/", "feb": "02/", "mar": "03/", "apr": "04/",
+        "may": "05/", "jun": "06/", "jul": "07/", "aug": "08/",
+        "sep": "09/", "oct": "10/", "nov": "11/", "dec": "12/",
+    }
+    key = month.lower()[:3]
+    if key not in prefixes:
+        raise ValueError(f"Unknown month: {month!r}. Use a 3-letter abbreviation like 'jan', 'feb', etc.")
+    return prefixes[key]
+
 
 # Fast & brittle categorization using a regex process
 def categorize_pdf_to_csv_v1(pdf_path: str, extract_documents: callable, categorize: callable, model: OllamaLLM) -> None:
@@ -183,7 +195,7 @@ models = {
 }
 
 # Main function
-def main():
+def main(month: str | None = None):
     # Models. TODO: parameterize this
     model = models["gemma2:27b"]
     # First categorize all PDFs
@@ -210,25 +222,25 @@ def main():
     paypal_csvs = all_csvs_in_folder("data/paypal")
     csvs.extend(paypal_csvs)
 
-    # now get the csvs of the month you want
-    # relevant_csvs = [csv for csv in csvs if "Jan-2025" in csv or "2025-01" in csv]
-    # or just get all of them
-    relevant_csvs = csvs
     rollup_csv = []
     data = {}
-    for csv_file_path in relevant_csvs:
+    for csv_file_path in csvs:
         csv_data_df = read_csv(csv_file_path)
+        if month is not None and 'date' in csv_data_df.columns:
+            csv_data_df = csv_data_df[csv_data_df['date'].astype(str).str.startswith(month_name_to_number(month))]
+        if csv_data_df.empty:
+            continue
         records = csv_data_df.to_dict('records')
         for record in records:
             record['source'] = csv_file_path
         rollup_csv.extend(records)
-        # print(f'\nProcessing csv {csv_file_path}\n{csv_data_df}\n')
         data = count_categories(csv_data_df, data)
-    # Write csv to file
-    export_to_csv(rollup_csv, 'rollup.csv')
+    rollup_filename = f"rollup_{month}.csv" if month else "rollup.csv"
+    export_to_csv(rollup_csv, rollup_filename)
+    print(f"Wrote {len(rollup_csv)} transactions to {rollup_filename}")
     print("\n")
     # ouput sankeymatic for copying
-    print(fmt_sankeymatic(data))
+    sankey = fmt_sankeymatic(data)
+    print(sankey)
+    return sankey
 
-if __name__ == "__main__":
-    main()

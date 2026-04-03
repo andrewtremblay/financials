@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "AI Assisted Financial Analysis"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "lzstring>=1.0.4",
+]
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu" }]
@@ -14,3 +16,8 @@ torchvision = [{ index = "pytorch-cpu" }]
 name = "pytorch-xpu"
 url = "https://download.pytorch.org/whl/xpu"
 explicit = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Make range inputs look nicer */
+input[type="range"] {
+  cursor: pointer;
+}
+
+/* Color input styling */
+input[type="color"] {
+  cursor: pointer;
+}
+
+/* Smooth textarea */
+textarea {
+  resize: none;
+}
+
+/* Remove number input arrows */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Extra Tailwind-like utilities that Tailwind 3 doesn't have */
+.bg-gray-750 {
+  background-color: #374151;
+}
+.bg-gray-850 {
+  background-color: #1e2533;
+}
