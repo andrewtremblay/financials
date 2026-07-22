@@ -6,6 +6,15 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "lzstring>=1.0.4",
+    "pandas>=2.2.3",
+    "docling",
+    "tabulate",
+    "pypdf>=5.1.0",
+    "python-dotenv>=0.21.1",
+    "langchain-community>=0.3.13",
+    "langchain-core>=0.3.28",
+    "langchain-ollama>=0.2.2",
+    "langchain-openai>=0.2.14",
 ]
 
 [tool.uv.sources]
@@ -13,8 +22,8 @@ torch = [{ index = "pytorch-cpu" }]
 torchvision = [{ index = "pytorch-cpu" }]
 
 [[tool.uv.index]]
-name = "pytorch-xpu"
-url = "https://download.pytorch.org/whl/xpu"
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [dependency-groups]

@@ -64,7 +64,7 @@ Delete these files to force a full re-run.
 
 - Python 3.12 (managed via `uv`)
 - `.env` file for `OPENAI_API_KEY` (optional; only needed for OpenAI models)
-- Install dependencies: `uv add -r requirements.txt`
+- Install dependencies: `uv sync` (all dependencies are declared in `pyproject.toml` / `uv.lock`)
 
 ## Key Patterns
 

@@ -8,7 +8,9 @@ This software was written with Python 3.11.4. Anything with 3.11 should be fine.
 
 `uv` is recommended for package installation and virtual environments. See <https://github.com/astral-sh/uv>
 
-`uv add -r requirements.txt`
+Dependencies are declared in `pyproject.toml` and pinned in `uv.lock`. Install them with:
+
+`uv sync`
 
 Install `gemma2:27b` with OllamaLLM (Ollama 0.1.26 or later).
 
