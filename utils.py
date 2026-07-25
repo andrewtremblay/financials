@@ -115,12 +115,14 @@ def clean_numeric_amount(value: any, row: pd.Series):
 # These categories are never subcategories
 IGNORE_CATEGORY = ["IGNORE", "BANKING", "INTEREST", "INVESTMENT","VENMO_PAYMENT", "CASHOUT", "CREDIT_CARD_PAYMENT", "BANK_TRANSFER"]
 
-def count_categories(csv_df: pd.DataFrame, data: dict = {}):
+def count_categories(csv_df: pd.DataFrame, data: dict | None = None):
     """
     Takes a pandas DataFrame (csv_df) with columns for amount and category and updates a dictionary (data) with the total amount for each category.
     The dictionary is expected to have an additional key "_map" which is a dictionary mapping subcategories to categories.
     The function returns the updated dictionary.
     """
+    if data is None:
+        data = {}
     if "_map" not in data:
         data["_map"] = {}
     # expected to have an amount column and a category column
