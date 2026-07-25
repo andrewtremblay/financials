@@ -70,6 +70,17 @@ uv run --with pandas pytest
 These same tests run automatically in CI on every pull request and on pushes to
 `main` (see `.github/workflows/unit-tests.yml`).
 
+### Coverage
+
+Add `--cov` to measure code coverage of the application modules:
+
+```bash
+uv run --with pandas pytest --cov --cov-report=term-missing
+```
+
+The measured modules are configured under `[tool.coverage.run]` in
+`pyproject.toml`. CI also publishes a coverage table to each run's job summary.
+
 ## Coming soon
 
 Better run parameters (choose the llm for classification).
