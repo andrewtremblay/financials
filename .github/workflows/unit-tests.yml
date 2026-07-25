@@ -1,13 +1,16 @@
 name: Unit Tests
 
 # Automated unit-testing pipeline. Runs the pytest suite on every pull request
-# and on pushes to main.
+# and on pushes to main, and reports code coverage.
 #
 # The suite mocks the heavy ML dependencies (LangChain, Docling, an Ollama/OpenAI
 # client) in conftest.py, so it only needs pandas + lzstring to run. We therefore
 # install the test runtime with `uv run --with pandas` rather than a full
 # `uv sync` of the entire dependency tree — this keeps CI fast (seconds, not
 # minutes) and independent of the torch/docling install.
+#
+# Coverage is measured for the modules configured under [tool.coverage.run] in
+# pyproject.toml, with a fail_under gate that fails the job on regressions.
 
 on:
   push:
@@ -16,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   test:
@@ -44,11 +48,51 @@ jobs:
           --cov-report=term-missing
           --cov-report=xml
 
+      # ---- Coverage reporting (once, on the 3.12 job) -------------------------
+      # `if: always()` so the report is still published when the fail_under gate
+      # trips (pytest-cov writes the reports before failing the step).
+
       - name: Publish coverage summary
-        if: matrix.python-version == '3.12'
+        if: ${{ always() && matrix.python-version == '3.12' }}
         run: |
           {
             echo "### Code coverage"
             echo ""
-            uv run coverage report --format=markdown
+            uv run coverage report --format=markdown || true
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: ${{ always() && matrix.python-version == '3.12' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          if-no-files-found: warn
+
+      - name: Comment coverage on PR
+        if: >-
+          ${{ always()
+          && matrix.python-version == '3.12'
+          && github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "<!-- coverage-comment -->"
+            echo "### Code coverage"
+            echo ""
+            uv run coverage report --format=markdown || true
+          } > coverage-comment.md
+          jq -n --rawfile body coverage-comment.md '{body: $body}' > payload.json
+          existing=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq 'map(select(.body | startswith("<!-- coverage-comment -->"))) | .[0].id // empty')
+          if [ -n "$existing" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$existing" --input payload.json > /dev/null
+            echo "Updated existing coverage comment ($existing)."
+          else
+            gh api --method POST "repos/$REPO/issues/$PR/comments" --input payload.json > /dev/null
+            echo "Created coverage comment."
+          fi

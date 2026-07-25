@@ -34,3 +34,7 @@ source = ["analyze_pdf", "utils", "serve_frontend", "categorize"]
 [tool.coverage.report]
 show_missing = true
 precision = 1
+# Gate: fail if coverage of the measured modules drops below this. Current is
+# ~63%; the floor is set a few points lower to absorb noise while preventing
+# meaningful regressions. Raise it as coverage improves.
+fail_under = 60
