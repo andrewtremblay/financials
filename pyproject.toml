@@ -21,6 +21,7 @@ explicit = true
 dev = [
     "pytest>=9.0.2",
     "pytest-cov>=5.0",
+    "ruff>=0.8.6",
 ]
 
 [tool.coverage.run]
@@ -38,3 +39,15 @@ precision = 1
 # ~63%; the floor is set a few points lower to absorb noise while preventing
 # meaningful regressions. Raise it as coverage improves.
 fail_under = 60
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# Bootstrap rule set: start with the critical, always-safe checks (syntax
+# errors and pyflakes undefined-name/bug checks) so linting is green on the
+# current codebase with no churn. Broader rules (unused imports, import
+# sorting, style) are intentionally deferred until the in-flight cleanup PRs
+# land, then this list can be widened toward ruff's defaults.
+select = ["E9", "F63", "F7", "F82"]
