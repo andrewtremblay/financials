@@ -13,3 +13,10 @@ memoized_results.json
 memoized_dataframes.json
 memoized_files_to_dataframes.json
 memoized_descriptions_to_categories.json
+# Coverage output
+.coverage
+coverage.xml
+htmlcov/
+
+# Agent worktrees
+.claude/worktrees/
