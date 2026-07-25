@@ -27,10 +27,18 @@ else:
 def memoize_description_to_file(func):
     """Decorator to memoize chain function results to a file."""
     def wrapper(chain, description):
-        result = None
         # Create a unique key based on the description and chain
         description_key = f"{description}"
         chain_specific_key = hashlib.sha256(f"{chain}|{description}".encode()).hexdigest()
+
+        # Pure cache hit: both keys are already populated. They are always
+        # written together with the same value, so there is nothing new to
+        # store -- return the cached result without rewriting the file.
+        if description_key in memoized_description_data and chain_specific_key in memoized_description_data:
+            # print(f"memoized result for '{description_key}'")
+            return memoized_description_data[chain_specific_key]
+
+        result = None
         if description_key in memoized_description_data:
             # print(f"memoized result for '{description_key}'")
             result = memoized_description_data[description_key]
@@ -46,10 +54,11 @@ def memoize_description_to_file(func):
         # Add the result to the memoized dictionary
         memoized_description_data[chain_specific_key] = result
         memoized_description_data[description_key] = result
-        # Save updated memoized data to file
+        # Save updated memoized data to file (only reached when the cache
+        # actually gained/changed a key, i.e. not on a pure hit)
         with open(MEMO_DESCRIPTIONS_FILE, "w") as file:
             json.dump(memoized_description_data, file, indent=4)
-        
+
         return result
     return wrapper
 
@@ -57,7 +66,6 @@ def memoize_description_to_file(func):
 def memoize_dataframe_to_file(func):
     """Decorator to memoize dataframe results to a file."""
     def wrapper(pdf_path):
-        result = None
         # Create a unique key based on the description and chain
         key = f"{pdf_path}"
         if key in memoized_df_data:
@@ -66,16 +74,18 @@ def memoize_dataframe_to_file(func):
             parsed = json.loads(memoized_df_data[key])
             # Convert each JSON object (list of dicts) to a DataFrame
             result = [pd.DataFrame(data) for data in parsed]
+            # Cache hit: nothing changed, so skip re-serializing and
+            # rewriting the whole file.
+            return result
         # Invoke the function and store the result
-        if result is None:
-            # print(f"cache miss for '{pdf_path}'")
-            result: list[pd.DataFrame] = func(pdf_path)
+        # print(f"cache miss for '{pdf_path}'")
+        result: list[pd.DataFrame] = func(pdf_path)
         # Add the result to the memoized dictionary
         # Convert each DataFrame to a JSON dict
         json_list = [df.to_dict(orient='records') for df in result]
         # convert json_list to a JSON string
         memoized_df_data[key] = json.dumps(json_list)
-        # Save updated memoized data to file
+        # Save updated memoized data to file (only reached on a miss)
         with open(MEMO_DATAFRAME_FILE, "w") as file:
             json.dump(memoized_df_data, file, indent=4)
         return result
