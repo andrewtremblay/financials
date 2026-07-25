@@ -1,0 +1,45 @@
+name: Unit Tests
+
+# Automated unit-testing pipeline. Runs the pytest suite on every pull request
+# and on pushes to main.
+#
+# The suite mocks the heavy ML dependencies (LangChain, Docling, an Ollama/OpenAI
+# client) in conftest.py, so it only needs pandas + lzstring to run. We therefore
+# install the test runtime with `uv run --with pandas` rather than a full
+# `uv sync` of the entire dependency tree — this keeps CI fast (seconds, not
+# minutes) and independent of the torch/docling install.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Run unit tests
+        run: >-
+          uv run
+          --python ${{ matrix.python-version }}
+          --with pandas
+          --with pytest-cov
+          pytest -v
+          --cov=utils --cov=analyze_pdf --cov=serve_frontend
+          --cov-report=term-missing

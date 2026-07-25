@@ -56,6 +56,20 @@ print(diagram_to_url(diagram))
 
 The diagram format is one flow per line: `Source [Amount] Destination`.
 
+## Testing
+
+Unit tests cover the pure logic — transaction/money/date parsing, category
+counting, Sankeymatic formatting, and diagram sizing. They mock the heavy ML
+dependencies (LangChain, Docling), so the suite runs in seconds with only
+`pandas` installed:
+
+```bash
+uv run --with pandas pytest
+```
+
+These same tests run automatically in CI on every pull request and on pushes to
+`main` (see `.github/workflows/unit-tests.yml`).
+
 ## Coming soon
 
 Better run parameters (choose the llm for classification).
