@@ -10,7 +10,7 @@ from collections import defaultdict
 import lzstring
 
 PORT = 8080
-DIRECTORY = os.path.join(os.path.dirname(__file__), "frontend_react", "dist")
+DIRECTORY = os.path.join(os.path.dirname(__file__), "frontend", "build")
 
 EXAMPLE_DIAGRAM = """\
 Wages [3000] Budget
@@ -132,7 +132,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
 
 
+def check_frontend_built() -> None:
+    """Warn loudly if the frontend build output is missing."""
+    index_path = os.path.join(DIRECTORY, "index.html")
+    if not os.path.isdir(DIRECTORY) or not os.path.isfile(index_path):
+        print(
+            f"WARNING: frontend build not found at {DIRECTORY!r}\n"
+            "  Expected a built index.html there, but it's missing.\n"
+            "  The server will start but every request will 404.\n"
+            "  Make sure the Sankeymatic frontend is built into 'frontend/build/'\n"
+            "  (see README.md) before running this server."
+        )
+
+
 if __name__ == "__main__":
+    check_frontend_built()
     example_url = diagram_to_url(EXAMPLE_DIAGRAM)
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
         print(f"Serving frontend at http://localhost:{PORT}")
