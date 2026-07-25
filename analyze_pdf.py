@@ -53,65 +53,58 @@ def categorize_pdf_to_csv_v2(pdf_path: str, extract_dataframes: callable, catego
 def get_possible_column(cols: pd.Index, colname: str) -> int | None:
     try:
         index = cols.get_loc(colname)
-        if type(index) == int:
+        if isinstance(index, int):
             return index
-        # fall back to fuzzy match
-        pattern = re.compile(colname)
-        matching_cols = [col for col in cols if pattern.search(col)]
-        if len(matching_cols) >= 1:
-            return cols.get_loc(matching_cols[0])
-            # return first match
-        return None
+        # get_loc returned something other than a plain int (e.g. a slice or
+        # boolean array for duplicate labels) -- fall through to fuzzy match below.
     except KeyError:
-        return None
+        pass
+    # fall back to fuzzy match
+    pattern = re.compile(colname)
+    matching_cols = [col for col in cols if pattern.search(col)]
+    if len(matching_cols) >= 1:
+        index = cols.get_loc(matching_cols[0])
+        if isinstance(index, int):
+            return index
+    return None
+
+# Data-driven candidate lists, in priority order. Because get_possible_column
+# now falls back to a regex search over the full column name, short distinctive
+# substrings are enough to match verbose/nested column names produced by Docling
+# (e.g. "Schwab Bank Investor Checking TM (continued).Activity (continued).Description").
+DESCRIPTION_COLUMN_CANDIDATES = [
+    "Description",
+]
+
+DATE_COLUMN_CANDIDATES = [
+    "Date Posted",
+    "Activity Posted",
+    "Transaction Date",
+]
+
+AMOUNT_COLUMN_CANDIDATES = [
+    "Debits",
+    "Credits",
+    "Amount",
+]
+
+def first_matching_column_index(cols: pd.Index, candidates: list[str]) -> int | None:
+    for candidate in candidates:
+        index = get_possible_column(cols, candidate)
+        if index is not None:
+            return index
+    return None
 
 def description_column_index(df: pd.DataFrame) -> int | None:
-    index = get_possible_column(df.columns, "Description")
-    if index == None:
-        index = get_possible_column(df.columns, "Transactions.Description")
-    if index == None:
-        index = get_possible_column(df.columns, "Schwab Bank Investor Checking TM (continued).Activity (continued).Description")
-    if index == None:
-        index = get_possible_column(df.columns, "Activity (continued).Description")
-    if index == None:
-        index = get_possible_column(df.columns, "Schwab Bank Investor Checking TM (continued).Activity (continued).Description")
-    if index == None:
-        index = get_possible_column(df.columns, "Description.Interest Charged")
-    return index
+    return first_matching_column_index(df.columns, DESCRIPTION_COLUMN_CANDIDATES)
 
 
 def date_column_index(df: pd.DataFrame) -> int | None:
-    index = get_possible_column(df.columns, "Date Posted")
-    if index == None:
-        index = get_possible_column(df.columns, "Activity Posted")
-    if index == None:
-        index = get_possible_column(df.columns, "Activity Date Posted")
-    if index == None:
-        index = get_possible_column(df.columns, "Schwab Bank Investor Checking TM.Activity.Date Posted")
-    if index == None:
-        index = get_possible_column(df.columns, "Activity (continued).Date Posted")
-    if index == None:
-        index = get_possible_column(df.columns, "Schwab Bank Investor Checking TM (continued).Activity (continued).Date Posted")
-    if index == None:
-        index = get_possible_column(df.columns, "Transaction Date")
-    if index == None:
-        index = get_possible_column(df.columns, "Transactions.Transaction Date")
-    if index == None:
-        index = get_possible_column(df.columns, "Transaction Date.")
-    return index
-    
+    return first_matching_column_index(df.columns, DATE_COLUMN_CANDIDATES)
+
 
 def amount_column_index(df: pd.DataFrame) -> int | None:
-    index = get_possible_column(df.columns, "Debits")
-    if index == None:
-        index = get_possible_column(df.columns, "Credits")
-    if index == None:
-        index = get_possible_column(df.columns, "Amount")
-    if index == None:
-        index = get_possible_column(df.columns, "Amount.")
-    if index == None:
-        index = get_possible_column(df.columns, "Transactions.Amount")
-    return index
+    return first_matching_column_index(df.columns, AMOUNT_COLUMN_CANDIDATES)
 
 def columns_for_df(df) -> list[int]:
     date_idx = date_column_index(df)
