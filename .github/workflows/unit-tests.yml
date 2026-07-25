@@ -34,12 +34,21 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Run unit tests
+      - name: Run unit tests with coverage
         run: >-
           uv run
           --python ${{ matrix.python-version }}
           --with pandas
-          --with pytest-cov
           pytest -v
-          --cov=utils --cov=analyze_pdf --cov=serve_frontend
+          --cov
           --cov-report=term-missing
+          --cov-report=xml
+
+      - name: Publish coverage summary
+        if: matrix.python-version == '3.12'
+        run: |
+          {
+            echo "### Code coverage"
+            echo ""
+            uv run coverage report --format=markdown
+          } >> "$GITHUB_STEP_SUMMARY"

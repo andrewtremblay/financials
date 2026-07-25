@@ -20,4 +20,17 @@ explicit = true
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "pytest-cov>=5.0",
 ]
+
+[tool.coverage.run]
+# Measure the first-party application modules the unit suite exercises. The
+# entry point (main.py), the file-backed cache (memo.py, mocked in the suite),
+# and the legacy per-bank v1 extractors are intentionally excluded — they have
+# no unit tests yet, so including them would report a misleading number rather
+# than the coverage of the code actually under test.
+source = ["analyze_pdf", "utils", "serve_frontend", "categorize"]
+
+[tool.coverage.report]
+show_missing = true
+precision = 1
