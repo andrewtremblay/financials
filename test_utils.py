@@ -7,11 +7,13 @@ from types import SimpleNamespace
 
 import pandas as pd
 
+import utils
 from utils import (
     clean_numeric_amount,
     count_categories,
     extract_date_and_amount_from_transaction,
     fmt_capitalize,
+    load_local_category_hints,
 )
 
 
@@ -88,3 +90,19 @@ class TestCountCategories:
         data = count_categories(df, {})
         assert data["FOOD"] == 10
         assert "IGNORE" not in data
+
+
+class TestLoadLocalCategoryHints:
+    def test_missing_file_returns_empty(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(utils, "LOCAL_CATEGORY_HINTS_FILE", str(tmp_path / "absent.txt"))
+        assert load_local_category_hints() == ""
+
+    def test_reads_hints_and_ignores_comments_and_blanks(self, monkeypatch, tmp_path):
+        hints = tmp_path / "hints.txt"
+        hints.write_text("# a comment\n\nACME is a FOOD category.\nGLOBEX is a WAGES category.\n")
+        monkeypatch.setattr(utils, "LOCAL_CATEGORY_HINTS_FILE", str(hints))
+        result = load_local_category_hints()
+        assert "ACME is a FOOD category." in result
+        assert "GLOBEX is a WAGES category." in result
+        assert "#" not in result
+        assert result.endswith(" ")

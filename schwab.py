@@ -1,5 +1,5 @@
 from memo import memoized_invoke_chain_transaction
-from utils import CATEGORY_PROMPT, TRANSACTION_PARAM, UNCERTAINTY, ONLY_PRINT_CATEGORY, CATEGORY_SINGLE_WORD, CATEGORY_UPPERCASE,  output_parser, extract_date_and_amount_from_transaction
+from utils import CATEGORY_PROMPT, TRANSACTION_PARAM, UNCERTAINTY, ONLY_PRINT_CATEGORY, CATEGORY_SINGLE_WORD, CATEGORY_UPPERCASE,  output_parser, extract_date_and_amount_from_transaction, load_local_category_hints
 from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
 import re
@@ -19,20 +19,20 @@ SCHWAB_WITHDRAWAL = "Withdrawal"
 
 # Prompt variables
 SCHWAB_CATEGORIES = "BARCLAYCARD US CREDITCARD is a CREDIT CARD PAYMENT. "
-IGNORE_CATEGORIES = "ZELLE TO REDACTED_NAME is a IGNORE category. REDACTED_MERCHANT is a IGNORE category. PAYPAL is a IGNORE category. "
-BILL_CATEGORIES = "REDACTED_MERCHANT and REDACTED_MERCHANT are INSURANCE BILL categories. REDACTED_MERCHANT ONE FEE is a UTILITIES BILL."
+IGNORE_CATEGORIES = "PAYPAL is a IGNORE category. "
 CHECK_CATEGORIES = "Check Paid is a CHECK category. "
 SUBSCRIPTION_CATEGORIES = "1PASSWORD and APPLE.COM are each a SUBSCRIPTION category. "
-OTHER_CATEGORIES = "REDACTED_MERCHANT and REDACTED_MERCHANT are WAGES category. REDACTED_MERCHANT is a GAS category. "
+# Personal merchant/payee/payroll hints come from a gitignored local file (see
+# category_hints.example.txt), never from committed source.
+LOCAL_CATEGORY_HINTS = load_local_category_hints()
 
 schwab_prompt = PromptTemplate.from_template(CATEGORY_PROMPT
-    + SCHWAB_CATEGORIES 
-    + IGNORE_CATEGORIES 
-    + BILL_CATEGORIES 
-    + SUBSCRIPTION_CATEGORIES 
-    + CHECK_CATEGORIES 
-    + OTHER_CATEGORIES 
-    + CATEGORY_UPPERCASE 
+    + SCHWAB_CATEGORIES
+    + IGNORE_CATEGORIES
+    + SUBSCRIPTION_CATEGORIES
+    + CHECK_CATEGORIES
+    + LOCAL_CATEGORY_HINTS
+    + CATEGORY_UPPERCASE
     + UNCERTAINTY 
     + CATEGORY_SINGLE_WORD 
     + ONLY_PRINT_CATEGORY 

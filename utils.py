@@ -287,6 +287,30 @@ CATEGORY_SINGLE_WORD = "Categories must be single words whenver possible and as 
 CATEGORY_UPPERCASE = "Categories must be in UPPERCASE. "
 
 
+# Personal categorization hints (merchant / payee / payroll names) are kept out
+# of version control to avoid committing PII. They are read at runtime from a
+# gitignored local file and appended to the LLM prompt. See
+# category_hints.example.txt for the format.
+LOCAL_CATEGORY_HINTS_FILE = "category_hints.local.txt"
+
+
+def load_local_category_hints() -> str:
+    """Return user-specific categorization hints from a gitignored local file.
+
+    Blank lines and lines starting with ``#`` are ignored; the remaining lines
+    are joined into a single hint string that gets appended to the
+    categorization prompt. Returns ``""`` when the file is absent, so the tool
+    runs without any local config.
+    """
+    try:
+        with open(LOCAL_CATEGORY_HINTS_FILE, encoding="utf-8") as f:
+            lines = [ln.strip() for ln in f if ln.strip() and not ln.lstrip().startswith("#")]
+    except FileNotFoundError:
+        return ""
+    text = " ".join(lines)
+    return f"{text} " if text else ""
+
+
 def extract_date_and_amount_from_transaction(text: str):
     """
     Extracts the date and amount from a transaction string.

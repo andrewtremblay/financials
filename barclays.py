@@ -1,5 +1,5 @@
 from memo import memoized_invoke_chain_transaction
-from utils import CATEGORY_PROMPT, TRANSACTION_PARAM, UNCERTAINTY, ONLY_PRINT_CATEGORY, CATEGORY_SINGLE_WORD, CATEGORY_UPPERCASE, output_parser
+from utils import CATEGORY_PROMPT, TRANSACTION_PARAM, UNCERTAINTY, ONLY_PRINT_CATEGORY, CATEGORY_SINGLE_WORD, CATEGORY_UPPERCASE, output_parser, load_local_category_hints
 from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
 import re
@@ -14,11 +14,12 @@ BARCLAYS_IGNORE_BLOCKS = [PAYMENT_RECEIVED]
 
 
 # Prompt variables
-BILL_CATEGORIES = "REDACTED_MERCHANT and REDACTED_MERCHANT are INSURANCE BILL categories. REDACTED_MERCHANT ONE FEE is a UTILITIES BILL."
 SUBSCRIPTION_CATEGORIES = "1PASSWORD and APPLE.COM are each a SUBSCRIPTION category. "
-OTHER_CATEGORIES = "REDACTED_MERCHANT and REDACTED_MERCHANT are WAGES category. REDACTED_MERCHANT is a GAS category. "
+# Personal merchant/payee/payroll hints come from a gitignored local file (see
+# category_hints.example.txt), never from committed source.
+LOCAL_CATEGORY_HINTS = load_local_category_hints()
 
-barclays_prompt = PromptTemplate.from_template(BILL_CATEGORIES + SUBSCRIPTION_CATEGORIES + CATEGORY_UPPERCASE + UNCERTAINTY + CATEGORY_SINGLE_WORD + ONLY_PRINT_CATEGORY + TRANSACTION_PARAM)
+barclays_prompt = PromptTemplate.from_template(LOCAL_CATEGORY_HINTS + SUBSCRIPTION_CATEGORIES + CATEGORY_UPPERCASE + UNCERTAINTY + CATEGORY_SINGLE_WORD + ONLY_PRINT_CATEGORY + TRANSACTION_PARAM)
     
 
 def remove_newlines(text):

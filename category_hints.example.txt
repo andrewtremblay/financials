@@ -1,0 +1,14 @@
+# Local categorization hints — copy this file to `category_hints.local.txt`.
+#
+# `category_hints.local.txt` is gitignored, so your personal merchant, payee,
+# and payroll names are never committed to the repository. Its contents are
+# appended verbatim to the LLM categorization prompt to improve accuracy for
+# transactions specific to you.
+#
+# Lines that are blank or begin with `#` are ignored. Write one short,
+# natural-language mapping per line, for example:
+#
+# ACME MARKET is a FOOD category.
+# GLOBEX PAYROLL and INITECH DIRECT DEP are WAGES category.
+# UMBRELLA INSURANCE is an INSURANCE BILL category.
+# ZELLE TO <your landlord> is a IGNORE category.

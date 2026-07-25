@@ -106,8 +106,6 @@ def amount_column_index(df: pd.DataFrame) -> int | None:
     if index == None:
         index = get_possible_column(df.columns, "Credits")
     if index == None:
-        index = get_possible_column(df.columns, "Account Number: REDACTED_ACCOUNT.Activity (continued).Credits")
-    if index == None:
         index = get_possible_column(df.columns, "Amount")
     if index == None:
         index = get_possible_column(df.columns, "Amount.")

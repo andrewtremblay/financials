@@ -20,3 +20,6 @@ htmlcov/
 
 # Agent worktrees
 .claude/worktrees/
+
+# Local, private categorization hints (never commit real merchant/payee names)
+category_hints.local.txt
