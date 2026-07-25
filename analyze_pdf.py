@@ -7,10 +7,6 @@ from langchain_ollama import OllamaLLM
 import pandas as pd
 import categorize
 from utils import load_pdf, export_to_csv, check_categorized_data, all_pdfs_in_folder, all_csvs_in_folder, load_pdf_as_dataframes, read_csv, count_categories, fmt_sankeymatic
-from boa import categorize_boa, extract_boa_transactions
-from schwab import categorize_schwab, extract_schwab_transactions
-from barclays import categorize_barclays, extract_barclays_transactions
-from paypal import categorize_paypal, extract_paypal_transactions
 from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
@@ -198,11 +194,6 @@ def main(month: str | None = None):
     model = models["gemma2:27b"]
     # First categorize all PDFs
     # Most LLMs are not really good at directly reading PDFs. We have to extract the data for them.
-    # categorize_all_pdfs_in_folder("data/boa_cc", lambda pdf_path: categorize_pdf_to_csv_v1(pdf_path, extract_boa_transactions, categorize_boa, model))
-    # categorize_all_pdfs_in_folder("data/schwab", lambda pdf_path: categorize_pdf_to_csv_v1(pdf_path, extract_schwab_transactions, categorize_schwab, model))
-    # categorize_all_pdfs_in_folder("data/barclays", lambda pdf_path: categorize_pdf_to_csv_v1(pdf_path, extract_barclays_transactions, categorize_barclays, model))
-    # categorize_all_pdfs_in_folder("data/paypal", lambda pdf_path: categorize_pdf_to_csv_v1(pdf_path, extract_paypal_transactions, categorize_paypal, model))
-
     categorize_all_pdfs_in_folder("data/boa_cc", lambda pdf_path: categorize_pdf_to_csv_v2(pdf_path, extract_dataframes, categorize.categorize, model))
     categorize_all_pdfs_in_folder("data/schwab", lambda pdf_path: categorize_pdf_to_csv_v2(pdf_path, extract_dataframes, categorize.categorize, model))
     categorize_all_pdfs_in_folder("data/barclays", lambda pdf_path: categorize_pdf_to_csv_v2(pdf_path, extract_dataframes, categorize.categorize, model))
