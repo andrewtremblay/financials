@@ -14,6 +14,8 @@ uv run main.py
 
 Requires Ollama running locally with `gemma2:27b` (default model). OpenAI models (`gpt-4`, `gpt-4o-mini`) are available — set `OPENAI_API_KEY` in `.env` to use them.
 
+Default `--source` is `plaid` — `main()` syncs linked Plaid items (throttled by `--plaid-max-age-hours`, default 24h) and reads only `data/plaid/`. Use `--source pdf` for the PDF-only pipeline described below, or `--source all` for both (see [Plaid Integration](#plaid-integration-optional)).
+
 ## Architecture
 
 | File | Role |
@@ -24,6 +26,9 @@ Requires Ollama running locally with `gemma2:27b` (default model). OpenAI models
 | [utils.py](utils.py) | PDF loading, CSV I/O, category counting, Sankeymatic formatting |
 | [memo.py](memo.py) | File-backed memoization for LLM calls and Docling parses |
 | [boa.py](boa.py) / [schwab.py](schwab.py) / [barclays.py](barclays.py) / [paypal.py](paypal.py) | Bank-specific v1 extractors and categorizers |
+| [plaid_client.py](plaid_client.py) | Shared Plaid API client + local `plaid_items.json` (access tokens) storage |
+| [plaid_link.py](plaid_link.py) | Run once per account: local browser flow to link via Plaid |
+| [plaid_sync.py](plaid_sync.py) | Run explicitly (not part of `main()`): pulls `/transactions/sync`, writes `data/plaid/*_categorized.csv` |
 
 ## Data Flow
 
@@ -44,6 +49,15 @@ Place PDFs in the matching subdirectory (all gitignored):
 - `data/schwab/` — Schwab checking
 - `data/barclays/` — Barclays credit card
 - `data/paypal/` — PayPal
+- `data/plaid/` — populated by `plaid_sync.py`, not PDFs (raw per-account JSON stores + `*_categorized.csv`)
+
+## Plaid Integration (optional, default source)
+
+Linked accounts (any institution Plaid supports — Schwab, BoA, Barclays, PayPal, etc.) are the default source, an alternative/supplement to PDF statements:
+- `uv run plaid_link.py` — one-time-per-account browser flow; saves access tokens to `plaid_items.json` (gitignored, contains live credentials)
+- `plaid_sync.sync_all_items(model, max_age)` — pulls via `/transactions/sync`; categorizes via the same `categorize.categorize()` used by the PDF pipeline, writes `data/plaid/<account_id>_categorized.csv` with an exact `year_month` column (from Plaid's ISO dates, no statement-date inference needed). Each item records `last_synced_at`; items synced more recently than `max_age` are skipped (no API call).
+- `main(source="plaid")` (the default) calls this on every run, throttled by `--plaid-max-age-hours` (default 24h) — so `uv run main.py` reflects roughly-fresh Plaid data without hitting the API/Production per-item costs on every single invocation. Pass `--plaid-max-age-hours 0` (or run `uv run plaid_sync.py` directly, which defaults to always-sync) to force a fresh pull.
+- No dedup between Plaid and PDF sources for the same account when using `--source all` — planned as a future parameter, not yet implemented; the user is responsible for not double-feeding both in the meantime
 
 ## Memoization
 

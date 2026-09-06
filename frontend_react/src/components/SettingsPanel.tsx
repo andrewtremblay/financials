@@ -14,10 +14,10 @@ const Section: React.FC<{
 }> = ({ title, defaultOpen = false, children }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-gray-700 rounded-lg overflow-hidden">
+    <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-800 hover:bg-gray-750 text-left text-sm font-semibold text-gray-200 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-750 text-left text-sm font-semibold text-gray-800 dark:text-gray-200 transition-colors"
       >
         <span>{title}</span>
         <span className="text-gray-500 text-xs">{open ? '▲' : '▼'}</span>
@@ -36,7 +36,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode; className?: stri
   label, children, className = ''
 }) => (
   <div className={`flex items-center justify-between gap-3 ${className}`}>
-    <label className="text-xs text-gray-400 flex-shrink-0 w-28">{label}</label>
+    <label className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 w-28">{label}</label>
     <div className="flex-1 flex items-center justify-end gap-2">{children}</div>
   </div>
 );
@@ -59,7 +59,7 @@ const NumberInput: React.FC<{
       const n = parseFloat(e.target.value);
       if (!isNaN(n)) onChange(n);
     }}
-    className={`w-20 bg-gray-900 text-gray-100 border border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 ${className}`}
+    className={`w-20 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 ${className}`}
   />
 );
 
@@ -72,13 +72,13 @@ const ColorInput: React.FC<{
       type="color"
       value={value.length === 4 || value.length === 7 ? value : '#888888'}
       onChange={e => onChange(e.target.value)}
-      className="w-8 h-7 rounded cursor-pointer border border-gray-600 bg-gray-900 p-0.5"
+      className="w-8 h-7 rounded cursor-pointer border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 p-0.5"
     />
     <input
       type="text"
       value={value}
       onChange={e => onChange(e.target.value)}
-      className="w-20 bg-gray-900 text-gray-100 border border-gray-700 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      className="w-20 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
       maxLength={7}
       placeholder="#rrggbb"
     />
@@ -104,7 +104,7 @@ const SliderInput: React.FC<{
       className="flex-1 accent-indigo-500 h-1.5 rounded"
     />
     {showValue && (
-      <span className="text-xs text-gray-400 w-10 text-right">{value}</span>
+      <span className="text-xs text-gray-500 dark:text-gray-400 w-10 text-right">{value}</span>
     )}
   </div>
 );
@@ -121,7 +121,7 @@ const CheckBox: React.FC<{
       onChange={e => onChange(e.target.checked)}
       className="w-3.5 h-3.5 accent-indigo-500 cursor-pointer"
     />
-    {label && <span className="text-xs text-gray-300">{label}</span>}
+    {label && <span className="text-xs text-gray-700 dark:text-gray-300">{label}</span>}
   </label>
 );
 
@@ -140,7 +140,7 @@ const RadioGroup: React.FC<{
           onChange={() => onChange(opt.value)}
           className="accent-indigo-500 w-3 h-3"
         />
-        <span className="text-xs text-gray-300">{opt.label}</span>
+        <span className="text-xs text-gray-700 dark:text-gray-300">{opt.label}</span>
       </label>
     ))}
   </div>
@@ -154,7 +154,7 @@ const SelectInput: React.FC<{
   <select
     value={value}
     onChange={e => onChange(e.target.value)}
-    className="bg-gray-900 text-gray-100 border border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+    className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
   >
     {options.map(opt => (
       <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -367,7 +367,7 @@ const SettingsPanel: React.FC<Props> = ({ settings, onChange }) => {
             onChange={v => upd('labels_highlight')(v / 100)}
           />
         </Row>
-        <div className="pt-1 border-t border-gray-700">
+        <div className="pt-1 border-t border-gray-300 dark:border-gray-700">
           <p className="text-xs text-gray-500 mb-2">Names</p>
           <Row label="">
             <CheckBox
@@ -387,7 +387,7 @@ const SettingsPanel: React.FC<Props> = ({ settings, onChange }) => {
             />
           </Row>
         </div>
-        <div className="pt-1 border-t border-gray-700">
+        <div className="pt-1 border-t border-gray-300 dark:border-gray-700">
           <p className="text-xs text-gray-500 mb-2">Values</p>
           <Row label="">
             <CheckBox
@@ -416,7 +416,7 @@ const SettingsPanel: React.FC<Props> = ({ settings, onChange }) => {
             />
           </Row>
         </div>
-        <div className="pt-1 border-t border-gray-700">
+        <div className="pt-1 border-t border-gray-300 dark:border-gray-700">
           <p className="text-xs text-gray-500 mb-2">Size scales</p>
           <Row label="Rel. size">
             <SliderInput value={settings.labels_relativesize} min={50} max={150} onChange={upd('labels_relativesize')} />
@@ -448,7 +448,7 @@ const SettingsPanel: React.FC<Props> = ({ settings, onChange }) => {
             type="text"
             value={settings.value_prefix}
             onChange={e => upd('value_prefix')(e.target.value)}
-            className="w-24 bg-gray-900 text-gray-100 border border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="w-24 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
             placeholder="e.g. $"
             maxLength={99}
           />
@@ -458,7 +458,7 @@ const SettingsPanel: React.FC<Props> = ({ settings, onChange }) => {
             type="text"
             value={settings.value_suffix}
             onChange={e => upd('value_suffix')(e.target.value)}
-            className="w-24 bg-gray-900 text-gray-100 border border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="w-24 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
             placeholder="e.g. %"
             maxLength={99}
           />

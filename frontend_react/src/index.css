@@ -2,22 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar styles */
+/* Custom scrollbar styles — light by default, dark override under the same
+   .dark ancestor class Tailwind's dark: variant toggles on <html>. */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: #e5e7eb;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: #9ca3af;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
   background: #6b7280;
 }
 
@@ -46,10 +59,21 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-/* Extra Tailwind-like utilities that Tailwind 3 doesn't have */
+/* Extra Tailwind-like utilities that Tailwind 3 doesn't have. These are
+   hand-written CSS, not Tailwind-generated utilities, so Tailwind's JIT
+   never learns about them and `dark:bg-gray-750` etc. would silently do
+   nothing — each one switches itself via the same `.dark` ancestor
+   selector Tailwind's own dark: variant relies on, so call sites just use
+   the bare class name in both themes. */
 .bg-gray-750 {
+  background-color: #d1d5db;
+}
+.dark .bg-gray-750 {
   background-color: #374151;
 }
 .bg-gray-850 {
+  background-color: #f3f4f6;
+}
+.dark .bg-gray-850 {
   background-color: #1e2533;
 }

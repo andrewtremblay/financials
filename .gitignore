@@ -6,21 +6,34 @@ data/barclays/*
 data/boa_cc/*
 data/paypal/*
 data/schwab/*
+data/plaid/*
 ignored-data/*
 ignored-data
 .env
+.env.*
 .claude/worktrees/
 memoized_results.json
 memoized_dataframes.json
 memoized_files_to_dataframes.json
 memoized_descriptions_to_categories.json
+plaid_items.json
+plaid_items.json.bak.*
+data/inbox/*
+!data/inbox/.gitkeep
+data/plaid_stale_backup/*
+service_account.json
+category_overrides.json
+custom_categories.json
+custom_budget_classification.json
+custom_sections.json
+untracked_income_overrides.json
+retirement_settings.json
+e2e/screenshots/
+
 # Coverage output
 .coverage
 coverage.xml
 htmlcov/
-
-# Agent worktrees
-.claude/worktrees/
 
 # Local, private categorization hints (never commit real merchant/payee names)
 category_hints.local.txt

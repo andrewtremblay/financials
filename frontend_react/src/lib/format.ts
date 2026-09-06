@@ -23,10 +23,9 @@ export function formatValue(
     // Show full precision but trim trailing zeros after decimal
     formatted = value.toString();
   } else {
-    // Round to 2 decimal places
-    formatted = value.toFixed(2);
-    // Remove trailing .00
-    formatted = formatted.replace(/\.?0+$/, '');
+    // Whole dollars only — cents don't matter for a flow-level diagram
+    // (2026-08-01, user-specified: "values ... don't need to have decimals").
+    formatted = value.toFixed(0);
   }
 
   // Split into integer and decimal parts

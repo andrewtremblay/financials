@@ -1,15 +1,153 @@
+import calendar
 import math
+import os
+from datetime import timedelta
 from pprint import pprint
 import re
+import urllib.request
 from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain_core.documents import Document
 from langchain_ollama import OllamaLLM
 import pandas as pd
 import categorize
+import plaid_sync
 from utils import load_pdf, export_to_csv, check_categorized_data, all_pdfs_in_folder, all_csvs_in_folder, load_pdf_as_dataframes, read_csv, count_categories, fmt_sankeymatic
 from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
+
+_MONTH_ABBREV = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+_MONTH_RE = "January|February|March|April|May|June|July|August|September|October|November|December"
+
+def extract_statement_year_month_from_pdf(pdf_path: str) -> tuple[int, int] | None:
+    """
+    Scan the raw text of a PDF for year-bearing dates and return (year, month)
+    for the latest one found — typically the statement closing or due date.
+
+    Recognised patterns (all anchored to 202x years):
+      Numeric
+        MM/DD/YYYY          01/23/2026
+        YYYY-MM-DD          2026-01-23   (ISO 8601)
+        MM-DD-YYYY          01-23-2026
+      Named month (with day)
+        Month D, YYYY       January 23, 2026
+        Month D-DD, YYYY    January 1-30, 2026
+        Month Dth, YYYY     June 3rd, 2025  (ordinals)
+        Month D - Month D, YYYY   December 24 - January 23, 2026  (billing period)
+        DD Month YYYY       23 January 2026
+      Named month (no day)
+        Month YYYY          January 2026
+      Last resort
+        YYYY alone          ©2026   → anchors year with month=12 (conservative)
+
+    Returns None only if the text contains no 202x-era year at all.
+    """
+    try:
+        docs = load_pdf(pdf_path)
+    except Exception:
+        return None
+    text = " ".join(d.page_content for d in docs)
+
+    found: list[tuple[int, int]] = []  # (year, month)
+
+    def _mn(name: str) -> int | None:
+        return _MONTH_ABBREV.get(name[:3].lower())
+
+    def _add(year: str | int, month: str | int) -> None:
+        try:
+            y, m = int(year), int(month)
+            if 2020 <= y <= 2099 and 1 <= m <= 12:
+                found.append((y, m))
+        except (ValueError, TypeError):
+            pass
+
+    # ── Numeric ───────────────────────────────────────────────────────────────
+    for m in re.finditer(r'\b(\d{1,2})/\d{1,2}/(202\d)\b', text):
+        _add(m.group(2), m.group(1))                                  # MM/DD/YYYY
+
+    for m in re.finditer(r'\b(202\d)-(\d{2})-\d{2}\b', text):
+        _add(m.group(1), m.group(2))                                  # YYYY-MM-DD
+
+    for m in re.finditer(r'\b(\d{1,2})-\d{1,2}-(202\d)\b', text):
+        _add(m.group(2), m.group(1))                                  # MM-DD-YYYY
+
+    # ── Named month with day ──────────────────────────────────────────────────
+    # "Month D, YYYY" / "Month D-DD, YYYY" (plain and range)
+    for m in re.finditer(rf'({_MONTH_RE})\s+\d[\d\-]*,?\s+(202\d)', text, re.IGNORECASE):
+        mn = _mn(m.group(1))
+        if mn:
+            _add(m.group(2), mn)
+
+    # "Month Dth/st/nd/rd, YYYY" (ordinal day)
+    for m in re.finditer(
+        rf'({_MONTH_RE})\s+\d{{1,2}}(?:st|nd|rd|th),?\s+(202\d)', text, re.IGNORECASE
+    ):
+        mn = _mn(m.group(1))
+        if mn:
+            _add(m.group(2), mn)
+
+    # "Month D - Month D, YYYY" (billing period; year applies to the closing month)
+    for m in re.finditer(
+        rf'(?:{_MONTH_RE})\s+\d+\s*[-–]\s*({_MONTH_RE})\s+\d+,?\s+(202\d)', text, re.IGNORECASE
+    ):
+        mn = _mn(m.group(1))
+        if mn:
+            _add(m.group(2), mn)
+
+    # "DD Month YYYY"
+    for m in re.finditer(rf'\b\d{{1,2}}\s+({_MONTH_RE})\s+(202\d)\b', text, re.IGNORECASE):
+        mn = _mn(m.group(1))
+        if mn:
+            _add(m.group(2), mn)
+
+    # ── Named month, no day ───────────────────────────────────────────────────
+    # "Month YYYY" — catches "January 2026" style period labels
+    for m in re.finditer(rf'\b({_MONTH_RE})\s+(202\d)\b', text, re.IGNORECASE):
+        mn = _mn(m.group(1))
+        if mn:
+            _add(m.group(2), mn)
+
+    if found:
+        return max(found)
+
+    # ── Last resort: standalone year ──────────────────────────────────────────
+    # e.g. Barclays statements that only contain "©2026" with no month context.
+    # month=12 is conservative: all transaction months (1–12) ≤ 12 → year attributed correctly.
+    years = [int(m.group(1)) for m in re.finditer(r'\b(202\d)\b', text)]
+    return (max(years), 12) if years else None
+
+
+def csv_to_pdf_path(csv_path: str) -> str | None:
+    """Return the source PDF path for a *_categorized.csv file, or None if not found."""
+    base = csv_path.replace('_categorized.csv', '')
+    for ext in ('.pdf', '.PDF'):
+        candidate = base + ext
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
+def infer_year_month(date_str: str, stmt_year: int, stmt_month: int) -> str:
+    """
+    Given a MM/DD date string and a statement anchor (year, month), return 'YYYY-MM'.
+
+    Dates whose month exceeds the anchor month belong to the prior year
+    (e.g. a Feb-2026-anchored statement that includes Dec transactions → Dec 2025).
+    Handles Docling artifacts like "01/03 01/03" by taking the first token.
+    """
+    clean = str(date_str).strip().split()[0]
+    parts = clean.split('/')
+    try:
+        date_month = int(parts[0])
+    except (ValueError, IndexError):
+        return f"{stmt_year}-{stmt_month:02d}"
+    year = stmt_year if date_month <= stmt_month else stmt_year - 1
+    return f"{year}-{date_month:02d}"
 
 def month_name_to_number(month: str) -> str:
     """Converts a month abbreviation (e.g. 'jan') to a date prefix (e.g. '01/')."""
@@ -156,17 +294,36 @@ def convert_dfs(df: pd.DataFrame, cols: list[int]) -> list[list[str]]:
             continue
     return to_return
 
+def _has_numeric_columns(df: pd.DataFrame) -> bool:
+    return all(str(c).isdigit() for c in df.columns)
+
+
 def extract_dataframes(dataframes: list[pd.DataFrame], origin: str) -> list[str]:
+    # First pass: collect valid column indices keyed by column count so that
+    # numeric-header continued pages (which may appear before or after a named
+    # page) can borrow the right positional mapping.
+    valid_cols_by_ncols: dict[int, list[int]] = {}
+    for df in dataframes:
+        cols = columns_for_df(df)
+        if is_valid_df(cols):
+            valid_cols_by_ncols[len(df.columns)] = cols
+
     valid_dataframes = []
     for df in dataframes:
         cols = columns_for_df(df)
         if is_valid_df(cols):
-            # print(f'Valid dataframe {cols}')
             rows = convert_dfs(df, cols)
+            valid_dataframes.extend(rows)
+        elif (
+            _has_numeric_columns(df)
+            and len(df.columns) in valid_cols_by_ncols
+        ):
+            # Continued page: Docling produced numeric headers — reuse column positions
+            fallback = valid_cols_by_ncols[len(df.columns)]
+            rows = convert_dfs(df, fallback)
             valid_dataframes.extend(rows)
         else:
             print(f'Skipping invalid dataframe in file:{origin} \n{", ".join(str(c) for c in df.columns)}\n')
-    # print(f'Extracted {len(valid_dataframes)} transactions from dataframes')
     return valid_dataframes
 
 def categorize_all_pdfs_in_folder(pdf_folder: str, pdf_to_csv: callable):
@@ -175,54 +332,142 @@ def categorize_all_pdfs_in_folder(pdf_folder: str, pdf_to_csv: callable):
     for pdf_file in pdfs:
         pdf_to_csv(pdf_file)
 
-models = {
-    "gemma2:27b": OllamaLLM(model="gemma2:27b", temperature=0.0, request_timeout=60), # Most accurate free model. Not very fast.
-    "gpt-4": ChatOpenAI(model="gpt-4", temperature=0.0, request_timeout=60), # Works best, but slow & most expensive.
-    "gpt-4o-mini": ChatOpenAI(model="gpt-4o-mini", temperature=0.0, request_timeout=60), # Works slightly faster than gpt-4, less accurate, still costs money
-}
+def _ollama_running() -> bool:
+    try:
+        urllib.request.urlopen("http://localhost:11434", timeout=2)
+        return True
+    except Exception:
+        return False
+
+
+def resolve_model():
+    """
+    Return the first available LLM, in priority order:
+      1. Ollama gemma2:27b  (local, free — requires `ollama serve`)
+      2. Claude claude-haiku-4-5  (fast, cheap — requires ANTHROPIC_API_KEY)
+      3. OpenAI gpt-4o-mini  (requires OPENAI_API_KEY)
+
+    Raises SystemExit with a clear message if nothing is available.
+    """
+    if _ollama_running():
+        print("Using Ollama (gemma2:27b)")
+        return OllamaLLM(model="gemma2:27b", temperature=0.0, request_timeout=60)
+
+    if os.getenv("ANTHROPIC_API_KEY"):
+        print("Using Anthropic (claude-haiku-4-5)")
+        return ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0.0)
+
+    if os.getenv("OPENAI_API_KEY"):
+        print("Using OpenAI (gpt-4o-mini)")
+        return ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
+
+    raise SystemExit(
+        "No LLM available. Start Ollama (`ollama serve`) or set ANTHROPIC_API_KEY / OPENAI_API_KEY in .env"
+    )
+
+INBOX_FOLDER = "data/inbox"
+BANK_FOLDERS = ["data/boa_cc", "data/schwab", "data/barclays", "data/paypal"]
+PLAID_FOLDER = "data/plaid"
+
+SOURCES = ("plaid", "pdf", "all")
+
 
 # Main function
-def main(month: str | None = None):
-    # Models. TODO: parameterize this
-    model = models["gemma2:27b"]
-    # First categorize all PDFs
-    # Most LLMs are not really good at directly reading PDFs. We have to extract the data for them.
-    categorize_all_pdfs_in_folder("data/boa_cc", lambda pdf_path: categorize_pdf_to_csv_v2(pdf_path, extract_dataframes, categorize.categorize, model))
-    categorize_all_pdfs_in_folder("data/schwab", lambda pdf_path: categorize_pdf_to_csv_v2(pdf_path, extract_dataframes, categorize.categorize, model))
-    categorize_all_pdfs_in_folder("data/barclays", lambda pdf_path: categorize_pdf_to_csv_v2(pdf_path, extract_dataframes, categorize.categorize, model))
-    categorize_all_pdfs_in_folder("data/paypal", lambda pdf_path: categorize_pdf_to_csv_v2(pdf_path, extract_dataframes, categorize.categorize, model))
+def main(
+    month: str | None = None,
+    inbox_only: bool = False,
+    source: str = "plaid",
+    plaid_max_age_hours: float = 24.0,
+):
+    """
+    source:
+      "plaid" (default) — only data/plaid/ (Plaid API transactions), no PDF parsing.
+      "pdf"              — only PDF parsing (data/inbox/ + bank folders), no Plaid.
+      "all"              — both. No dedup between the two sources yet (TODO: future param).
+    """
+    if source not in SOURCES:
+        raise ValueError(f"Unknown source {source!r}. Use one of {SOURCES}.")
 
-
-    # then gather all csvs that the pdfs generated
+    model = resolve_model()
     csvs = []
-    boa_csvs = all_csvs_in_folder("data/boa_cc")
-    csvs.extend(boa_csvs)
-    schwab_csvs = all_csvs_in_folder("data/schwab")
-    csvs.extend(schwab_csvs)
-    barclays_csvs = all_csvs_in_folder("data/barclays")
-    csvs.extend(barclays_csvs)
-    paypal_csvs = all_csvs_in_folder("data/paypal")
-    csvs.extend(paypal_csvs)
+
+    if source in ("pdf", "all"):
+        # Process inbox in-place (v2 is bank-agnostic — no routing/copying needed)
+        categorize_all_pdfs_in_folder(INBOX_FOLDER, lambda pdf_path: categorize_pdf_to_csv_v2(pdf_path, extract_dataframes, categorize.categorize, model))
+        csvs.extend(all_csvs_in_folder(INBOX_FOLDER))
+
+        if not inbox_only:
+            # Also process any PDFs already in bank-specific subfolders (legacy files not in inbox)
+            for folder in BANK_FOLDERS:
+                categorize_all_pdfs_in_folder(folder, lambda pdf_path: categorize_pdf_to_csv_v2(pdf_path, extract_dataframes, categorize.categorize, model))
+                csvs.extend(all_csvs_in_folder(folder))
+
+    if source in ("plaid", "all"):
+        # Sync (skipping items synced within plaid_max_age_hours) then read whatever's in data/plaid/.
+        plaid_sync.sync_all_items(model, max_age=timedelta(hours=plaid_max_age_hours))
+        csvs.extend(all_csvs_in_folder(PLAID_FOLDER))
 
     rollup_csv = []
-    data = {}
+    data_total = {}
+    data_by_month: dict[str, dict] = {}
+
     for csv_file_path in csvs:
         csv_data_df = read_csv(csv_file_path)
-        if month is not None and 'date' in csv_data_df.columns:
-            csv_data_df = csv_data_df[csv_data_df['date'].astype(str).str.startswith(month_name_to_number(month))]
         if csv_data_df.empty:
             continue
+
+        # Annotate each row with its inferred calendar year-month.
+        # Plaid CSVs (data/plaid/) already carry an exact year_month column,
+        # stamped from Plaid's own ISO transaction dates — no PDF to infer from.
+        if 'year_month' in csv_data_df.columns:
+            pass
+        else:
+            pdf_path = csv_to_pdf_path(csv_file_path)
+            stmt_date = extract_statement_year_month_from_pdf(pdf_path) if pdf_path else None
+            if stmt_date and 'date' in csv_data_df.columns:
+                stmt_year, stmt_month = stmt_date
+                csv_data_df = csv_data_df.copy()
+                csv_data_df['year_month'] = csv_data_df['date'].astype(str).apply(
+                    lambda d: infer_year_month(d, stmt_year, stmt_month)
+                )
+            else:
+                csv_data_df['year_month'] = 'unknown'
+
         records = csv_data_df.to_dict('records')
         for record in records:
             record['source'] = csv_file_path
         rollup_csv.extend(records)
-        data = count_categories(csv_data_df, data)
-    rollup_filename = f"rollup_{month}.csv" if month else "rollup.csv"
-    export_to_csv(rollup_csv, rollup_filename)
-    print(f"Wrote {len(rollup_csv)} transactions to {rollup_filename}")
-    print("\n")
-    # ouput sankeymatic for copying
-    sankey = fmt_sankeymatic(data)
-    print(sankey)
-    return sankey
+
+        data_total = count_categories(csv_data_df, data_total)
+        for ym, group in csv_data_df.groupby('year_month'):
+            if ym not in data_by_month:
+                data_by_month[ym] = {}
+            data_by_month[ym] = count_categories(group, data_by_month[ym])
+
+    export_to_csv(rollup_csv, "rollup.csv")
+    print(f"Wrote {len(rollup_csv)} transactions to rollup.csv\n")
+
+    # ── Monthly reports ──────────────────────────────────────────────────────
+    month_filter = month_name_to_number(month).rstrip('/') if month else None
+    requested_sankey = None
+
+    for ym in sorted(data_by_month.keys()):
+        year_str, mon_str = ym.split('-')
+        label = f"{calendar.month_name[int(mon_str)]} {year_str}"
+        print(f"\n{'='*52}")
+        print(f"  {label}")
+        print(f"{'='*52}\n")
+        sankey = fmt_sankeymatic(data_by_month[ym])
+        print(sankey)
+        if month_filter and mon_str == month_filter:
+            requested_sankey = sankey
+
+    # ── Total ────────────────────────────────────────────────────────────────
+    print(f"\n{'='*52}")
+    print(f"  TOTAL  ({', '.join(sorted(data_by_month.keys()))})")
+    print(f"{'='*52}\n")
+    total_sankey = fmt_sankeymatic(data_total)
+    print(total_sankey)
+
+    return requested_sankey if requested_sankey else total_sankey
 

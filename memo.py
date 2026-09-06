@@ -24,28 +24,55 @@ else:
     memoized_df_data = {}
 
 
+def _chain_signature(chain) -> str:
+    """
+    Build a stable identifier for a `prompt | model | output_parser` chain.
+
+    str(chain) is NOT stable across separate model constructions — e.g.
+    ChatOpenAI's repr embeds its internal http client objects, whose memory
+    addresses differ every time resolve_model() runs (i.e. every process),
+    which would silently defeat chain-specific memoization on every single
+    run. Use the prompt's template text (deterministic) plus a light model
+    identifier (class + model name) instead.
+    """
+    prompt = getattr(chain, "first", None)
+    template = getattr(prompt, "template", None)
+    if template is None:
+        template = str(prompt)
+
+    model = next(iter(getattr(chain, "middle", None) or []), None)
+    if model is not None:
+        model_name = getattr(model, "model_name", None) or getattr(model, "model", None)
+        model_signature = f"{type(model).__name__}:{model_name}"
+    else:
+        model_signature = "unknown-model"
+
+    return f"{template}|{model_signature}"
+
+
 def memoize_description_to_file(func):
     """Decorator to memoize chain function results to a file."""
     def wrapper(chain, description):
         # Create a unique key based on the description and chain
         description_key = f"{description}"
-        chain_specific_key = hashlib.sha256(f"{chain}|{description}".encode()).hexdigest()
+        chain_specific_key = hashlib.sha256(f"{_chain_signature(chain)}|{description}".encode()).hexdigest()
 
-        # Pure cache hit: both keys are already populated. They are always
-        # written together with the same value, so there is nothing new to
-        # store -- return the cached result without rewriting the file.
+        # Pure cache hit: both keys are already populated (always written
+        # together with the same value, see below) -- return the cached
+        # result without rewriting the file.
         if description_key in memoized_description_data and chain_specific_key in memoized_description_data:
             # print(f"memoized result for '{description_key}'")
             return memoized_description_data[chain_specific_key]
 
         result = None
-        if description_key in memoized_description_data:
-            # print(f"memoized result for '{description_key}'")
-            result = memoized_description_data[description_key]
-        # Check if the result is already memoized
+        # Cache hits must be gated on chain_specific_key only (not
+        # description_key) below. Different chains (e.g. the generic
+        # categorize_prompt vs a bank-specific prompt like schwab_prompt)
+        # can legitimately categorize the same description differently --
+        # falling back to the plain description_key here would let
+        # whichever chain ran first silently shadow every other chain's
+        # result for that description.
         if chain_specific_key in memoized_description_data:
-            # print(f"memoized result for '{description_key}'")
-            # print("Cached result: " + memoized_description_data[key])
             result = memoized_description_data[chain_specific_key]
         # Invoke the function and store the result
         if result is None:

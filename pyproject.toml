@@ -5,6 +5,10 @@ description = "AI Assisted Financial Analysis"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.141.1",
+    "google-auth>=2.56.2",
+    "gspread>=6.2.1",
+    "langchain-anthropic>=1.4.3",
     "lzstring>=1.0.4",
     "pandas>=2.2.3",
     "docling",
@@ -15,6 +19,8 @@ dependencies = [
     "langchain-core>=0.3.28",
     "langchain-ollama>=0.2.2",
     "langchain-openai>=0.2.14",
+    "plaid-python>=42.0.0",
+    "uvicorn[standard]>=0.52.0",
 ]
 
 [tool.uv.sources]
@@ -28,6 +34,7 @@ explicit = true
 
 [dependency-groups]
 dev = [
+    "playwright>=1.61.0",
     "pytest>=9.0.2",
     "pytest-cov>=5.0",
     "ruff>=0.8.6",
