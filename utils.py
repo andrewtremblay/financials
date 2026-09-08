@@ -164,25 +164,27 @@ def sort_budget(budget_data: list, meta: dict):
         if(item[1] == 0):
             print(f"ERROR: zero value for {item[2]} ({item[0]}): skipping")
             continue
-        if item[0] == 'Overbudget' or item[2] == 'Savings':
+        if item[0] == 'Overbudget' or item[2] == 'EXTRA_SAVINGS':
             # we always append these to the end
             continue
         result += f"{fmt_capitalize(item[0])} [{item[1]}] {fmt_capitalize(item[2])}\n"
     for item in sorted_budget:
-        if item[0] == 'Overbudget' or item[2] == 'Savings':
+        if item[0] == 'Overbudget' or item[2] == 'EXTRA_SAVINGS':
             result += f"{fmt_capitalize(item[0])} [{item[1]}] {fmt_capitalize(item[2])}\n"
             break
     print('\n\n')
     return result
 
-INCOME_CATEGORIES = ["WAGES", "INCOME", "ZUS", "ZUS_CREDIT", "SALARY", "TAKE_HOME_PAY"]
+INCOME_CATEGORIES = ["WAGES", "INCOME", "ZUS", "ZUS_CREDIT", "SALARY", "TAKE_HOME_PAY", "PAYROLL"]
 
 
 capitalization_map = {
     "ATM_WITHDRAWAL": "ATM Withdrawal",
     "MBTA": "MBTA",
     "CHATGPT": "ChatGPT",
-} 
+    "WAGES": "Zus Wages",
+    "PAYROLL": "Banneker Wages",
+}
 
 def fmt_capitalize(with_underscores: str):
     if with_underscores in capitalization_map:
@@ -248,13 +250,18 @@ def fmt_sankeymatic(data: dict):
             total_expenses += effective
             sankeymatic_str += f"Budget [{effective}] {category}\n"
     sankeymatic_str += "\n\n # TOTALS"
-    sankeymatic_str += f"\nWages [{wages_total}] Budget\n"
-    # Both savings and overspending are outflows from Budget (right side),
-    # keeping Budget's left side as income only.
+    if wages_total != 0:
+        sankeymatic_str += f"\nWages [{wages_total}] Budget\n"
+    # Overspending is an inflow (left side) — it represents the shortfall that
+    # had to come from somewhere (credit, drawing down savings, etc.) to cover
+    # expenses beyond income. Savings is an outflow (right side) — money left
+    # over after expenses.
     if total_expenses > wages_total:
-        sankeymatic_str += f"\nBudget [{total_expenses - wages_total}] Overspending\n"
+        sankeymatic_str += f"\nOverspending [{total_expenses - wages_total}] Budget\n"
     if total_expenses < wages_total:
-        sankeymatic_str += f"\nBudget [{wages_total - total_expenses}] Savings\n"
+        # Distinct from the explicit SAVINGS category (money deliberately set
+        # aside): this is unallocated leftover after expenses and SAVINGS.
+        sankeymatic_str += f"\nBudget [{wages_total - total_expenses}] EXTRA_SAVINGS\n"
     # go through the subcategories in _map
     for subcategory, category in subcategories.items():
         if subcategory in data and data[subcategory] != 0:

@@ -38,13 +38,23 @@ def test_wages_flow_into_budget():
     assert "Wages [3000] Budget" in out
 
 
-def test_income_leaf_flows_into_wages_node():
-    """WAGES suppresses its own →Wages line (self-loop); the total still reaches Budget."""
+def test_wages_renamed_to_zus_wages():
+    """WAGES is display-renamed to 'Zus Wages' via capitalization_map. Since its
+    rendered name no longer equals the 'Wages' aggregator, it emits a real leaf
+    flow into Wages instead of being self-loop-suppressed."""
     data = {"WAGES": 2500, "FOOD": 500}
     out = fmt_sankeymatic(data)
     assert "Wages [2500] Budget" in out
-    # WAGES → Wages would be a self-loop in Sankeymatic; it must be suppressed
-    assert "Wages [2500] Wages" not in out
+    assert "Zus Wages [2500] Wages" in out
+
+
+def test_payroll_renamed_to_banneker_wages():
+    """PAYROLL is income (in INCOME_CATEGORIES) and display-renamed to
+    'Banneker Wages' via capitalization_map."""
+    data = {"PAYROLL": 1600, "FOOD": 400}
+    out = fmt_sankeymatic(data)
+    assert "Banneker Wages [1600] Wages" in out
+    assert "Wages [1600] Budget" in out
 
 
 def test_zus_two_paychecks():
@@ -76,7 +86,7 @@ def test_zus_two_paychecks():
     assert "Budget [1200] Zus First" not in out
 
     # Savings = total wages(1000+2000) - food(500) = 2500
-    assert "Budget [2500] Savings" in out
+    assert "Budget [2500] Extra Savings" in out
 
 
 def test_multiple_income_sources_sum_into_budget():
@@ -114,10 +124,20 @@ def test_expense_amounts_are_formatted_as_title_case():
 # ---------------------------------------------------------------------------
 
 def test_savings_when_income_exceeds_expenses():
-    """Savings line appears when wages > total expenses."""
+    """Extra Savings line appears when wages > total expenses."""
     data = {"WAGES": 5000, "FOOD": 1000, "HOUSING": 2000}
     out = fmt_sankeymatic(data)
-    assert "Budget [2000] Savings" in out
+    assert "Budget [2000] Extra Savings" in out
+
+
+def test_explicit_savings_category_distinct_from_extra_savings():
+    """The explicit SAVINGS category (money deliberately set aside) and the
+    auto-computed leftover (Extra Savings) are separate, distinctly labeled
+    outflows — one isn't folded into the other."""
+    data = {"WAGES": 5000, "SAVINGS": 1000, "FOOD": 2000}
+    out = fmt_sankeymatic(data)
+    assert "Budget [1000] Savings" in out
+    assert "Budget [2000] Extra Savings" in out
 
 
 def test_no_savings_line_when_overspending():
@@ -131,7 +151,7 @@ def test_overspending_when_expenses_exceed_income():
     """Overspending line appears when total expenses > wages."""
     data = {"WAGES": 1000, "FOOD": 600, "HOUSING": 800}
     out = fmt_sankeymatic(data)
-    assert "Budget [400] Overspending" in out
+    assert "Overspending [400] Budget" in out
 
 
 def test_no_overspending_line_when_saving():
@@ -208,7 +228,7 @@ def test_transportation_counted_under_needs():
     assert "Budget [1000] Transportation" not in out
 
     # Savings correctly reflects wages minus total Needs (not wages minus Needs+Transportation)
-    assert "Budget [1500] Savings" in out
+    assert "Budget [1500] Extra Savings" in out
 
 
 def test_nested_transportation_counted_under_needs():
@@ -252,7 +272,7 @@ def test_nested_transportation_counted_under_needs():
     assert "Budget [400] Other" in out
 
     # Savings = wages(4000) - needs(2500) - other(400) = 1100
-    assert "Budget [1100] Savings" in out
+    assert "Budget [1100] Extra Savings" in out
 
 
 def test_needs_wants_savings_structure():
@@ -275,4 +295,83 @@ def test_needs_wants_savings_structure():
     assert "Needs [1200] Housing" in lines
     assert "Needs [800] Food" in lines
     assert "Wants [600] Entertainment" in lines
-    assert "Budget [1400] Savings" in lines
+    assert "Budget [1400] Extra Savings" in lines
+
+
+# ---------------------------------------------------------------------------
+# Edge cases
+# ---------------------------------------------------------------------------
+
+def test_break_even_no_savings_no_overspending():
+    """When income exactly equals expenses, neither Savings nor Overspending appears."""
+    data = {"WAGES": 1000, "FOOD": 1000}
+    out = fmt_sankeymatic(data)
+    assert "Savings" not in out
+    assert "Overspending" not in out
+
+
+def test_negative_expense_skipped():
+    """A net-negative category (refund exceeds purchases) is silently dropped."""
+    data = {"WAGES": 3000, "FOOD": -100, "GAS": 500}
+    out = fmt_sankeymatic(data)
+    assert "Food" not in out
+    # Gas still flows normally; savings = 3000 - 500 = 2500
+    assert "Budget [500] Gas" in out
+    assert "Budget [2500] Extra Savings" in out
+
+
+def test_zero_amount_expense_not_emitted():
+    """A zero-amount category is never emitted as a Budget outflow."""
+    data = {"WAGES": 2000, "FOOD": 0, "GAS": 200}
+    out = fmt_sankeymatic(data)
+    assert "Budget [0] Food" not in out
+    assert "Budget [200] Gas" in out
+
+
+def test_capitalization_map_mbta():
+    """MBTA is in the capitalization_map and renders as 'MBTA', not 'Mbta'."""
+    data = {"WAGES": 2000, "MBTA": 150}
+    out = fmt_sankeymatic(data)
+    assert "Budget [150] MBTA" in out
+
+
+def test_capitalization_map_chatgpt():
+    """CHATGPT renders as 'ChatGPT' via the capitalization_map."""
+    data = {"WAGES": 2000, "CHATGPT": 20}
+    out = fmt_sankeymatic(data)
+    assert "Budget [20] ChatGPT" in out
+
+
+def test_income_category_variant():
+    """INCOME (not WAGES) is treated as income and flows into Wages."""
+    data = {"INCOME": 1500, "FOOD": 500}
+    out = fmt_sankeymatic(data)
+    assert "Wages [1500] Budget" in out
+    assert "Budget [500] Food" in out
+    assert "Budget [1000] Extra Savings" in out
+
+
+def test_salary_income_category():
+    """SALARY is recognized as income."""
+    data = {"SALARY": 4000, "HOUSING": 1200}
+    out = fmt_sankeymatic(data)
+    assert "Wages [4000] Budget" in out
+
+
+def test_multiple_income_categories_separate_lines():
+    """Each non-WAGES income category emits its own → Wages line."""
+    data = {"WAGES": 1000, "INCOME": 500, "FOOD": 200}
+    out = fmt_sankeymatic(data)
+    # INCOME flows into Wages node; WAGES does not self-loop
+    assert "Income [500] Wages" in out
+    assert "Wages [500] Wages" not in out
+    assert "Wages [1500] Budget" in out
+
+
+def test_caller_dict_not_mutated():
+    """fmt_sankeymatic must not modify the caller's data dict."""
+    data = {"WAGES": 2000, "FOOD": 500, "_map": {"DINING": "FOOD"}, "DINING": 300}
+    original_keys = set(data.keys())
+    fmt_sankeymatic(data)
+    assert set(data.keys()) == original_keys
+    assert "_map" in data  # _map was not popped from original

@@ -167,7 +167,7 @@ const InputPanel: React.FC<Props> = ({ value, onChange, onLoadExample, onFileLoa
     <div className="flex flex-col gap-3 h-full">
       {/* Example buttons */}
       <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
           Examples
         </p>
         <div className="flex flex-wrap gap-2">
@@ -175,7 +175,7 @@ const InputPanel: React.FC<Props> = ({ value, onChange, onLoadExample, onFileLoa
             <button
               key={ex.id}
               onClick={() => handleExampleClick(ex)}
-              className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-indigo-600 text-gray-200 hover:text-white rounded-md transition-colors duration-150 border border-gray-600 hover:border-indigo-500"
+              className="px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-700 hover:bg-indigo-600 text-gray-800 dark:text-gray-200 hover:text-white rounded-md transition-colors duration-150 border border-gray-300 dark:border-gray-600 hover:border-indigo-500"
             >
               {ex.name}
             </button>
@@ -185,8 +185,8 @@ const InputPanel: React.FC<Props> = ({ value, onChange, onLoadExample, onFileLoa
 
       {/* Replace warning */}
       {showReplaceWarning && (
-        <div className="bg-yellow-900/50 border border-yellow-600 rounded-lg p-3 text-sm">
-          <p className="text-yellow-200 mb-2">
+        <div className="bg-yellow-100 dark:bg-yellow-900/50 border border-yellow-400 dark:border-yellow-600 rounded-lg p-3 text-sm">
+          <p className="text-yellow-800 dark:text-yellow-200 mb-2">
             This will <strong>erase</strong> your current diagram. Continue?
           </p>
           <div className="flex gap-2">
@@ -198,7 +198,7 @@ const InputPanel: React.FC<Props> = ({ value, onChange, onLoadExample, onFileLoa
             </button>
             <button
               onClick={() => { setShowReplaceWarning(false); setPendingExample(null); }}
-              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs font-medium transition-colors"
+              className="px-3 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded text-xs font-medium transition-colors"
             >
               Cancel
             </button>
@@ -208,38 +208,38 @@ const InputPanel: React.FC<Props> = ({ value, onChange, onLoadExample, onFileLoa
 
       {/* Textarea */}
       <div className="flex-1 flex flex-col min-h-0">
-        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+        <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
           Flows &amp; Nodes
         </label>
         <textarea
           value={value}
           onChange={e => onChange(e.target.value)}
-          className="flex-1 w-full bg-gray-900 text-gray-100 border border-gray-700 rounded-lg p-3 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent leading-relaxed placeholder-gray-600 min-h-[200px]"
+          className="flex-1 w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded-lg p-3 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent leading-relaxed placeholder-gray-400 dark:placeholder-gray-600 min-h-[200px]"
           placeholder={`// Enter flows like:\nWages [1500] Budget\nBudget [450] Taxes\n\n// Node color:\n:Budget #708090`}
           spellCheck={false}
         />
       </div>
 
       {/* Syntax help */}
-      <div className="text-xs text-gray-500 leading-relaxed bg-gray-900 rounded-lg p-3 border border-gray-800">
-        <p className="font-semibold text-gray-400 mb-1">Syntax</p>
-        <p><span className="text-indigo-400">Source [amount] Target</span> — flow</p>
-        <p><span className="text-indigo-400">:NodeName #color</span> — node color</p>
-        <p><span className="text-indigo-400">// comment</span> — ignored line</p>
-        <p><span className="text-indigo-400">move Name x, y</span> — offset node</p>
+      <div className="text-xs text-gray-500 leading-relaxed bg-gray-100 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-800">
+        <p className="font-semibold text-gray-500 dark:text-gray-400 mb-1">Syntax</p>
+        <p><span className="text-indigo-600 dark:text-indigo-400">Source [amount] Target</span> — flow</p>
+        <p><span className="text-indigo-600 dark:text-indigo-400">:NodeName #color</span> — node color</p>
+        <p><span className="text-indigo-600 dark:text-indigo-400">// comment</span> — ignored line</p>
+        <p><span className="text-indigo-600 dark:text-indigo-400">move Name x, y</span> — offset node</p>
       </div>
 
       {/* File save/load */}
       <div className="flex gap-2">
         <button
           onClick={handleSave}
-          className="flex-1 px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-md transition-colors border border-gray-600 font-medium"
+          className="flex-1 px-3 py-2 text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md transition-colors border border-gray-300 dark:border-gray-600 font-medium"
         >
           Save to file
         </button>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex-1 px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-md transition-colors border border-gray-600 font-medium"
+          className="flex-1 px-3 py-2 text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md transition-colors border border-gray-300 dark:border-gray-600 font-medium"
         >
           Load from file
         </button>

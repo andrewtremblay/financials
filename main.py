@@ -41,13 +41,27 @@ def handle():
     parser = argparse.ArgumentParser()
     parser.add_argument("--month", type=str, default=None, help="Filter by month abbreviation (e.g. jan, feb, mar)", choices=MONTH_NAMES.keys())
     parser.add_argument("--open", action="store_true", help="Open the Sankeymatic diagram in a browser after analysis")
+    parser.add_argument("--inbox-only", action="store_true", help="Process only data/inbox/ — skip bank-specific subfolders (only applies to --source pdf/all)")
+    parser.add_argument(
+        "--source", choices=["plaid", "pdf", "all"], default="plaid",
+        help="Data source: 'plaid' (default) syncs+reads data/plaid/ only, 'pdf' parses statements only, 'all' does both (no dedup between them yet)",
+    )
+    parser.add_argument(
+        "--plaid-max-age-hours", type=float, default=24.0,
+        help="Skip re-syncing a Plaid item if it was synced within this many hours (default: 24)",
+    )
     args = parser.parse_args()
     month = args.month
     if month is not None:
         key = month.lower()[:3]
         if key not in MONTH_NAMES:
             raise ValueError(f"Unknown month: {month!r}. Use a 3-letter abbreviation like 'jan', 'feb', etc.")
-    diagram = main(month)
+    diagram = main(
+        month,
+        inbox_only=args.inbox_only,
+        source=args.source,
+        plaid_max_age_hours=args.plaid_max_age_hours,
+    )
     if args.open and diagram:
         open_in_browser(diagram)
 
