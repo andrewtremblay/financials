@@ -102,11 +102,20 @@ def load_all_transactions() -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def _line_item_cell(section: str, line_item: str) -> tuple[str, int]:
+def _line_item_cell(section: str, line_item: str) -> tuple[str, int] | None:
+    """None means this (section, line_item) has no physical row on the
+    Sheet at all — always a custom category created through the dashboard's
+    "add a new category" flow (see custom_categories.py) after this Sheet's
+    fixed row layout was set. Unlike the web API's aggregate_month_json,
+    which can synthesize a new JSON entry for these, a real Sheet tab has no
+    such thing as a synthetic row — callers must route the money to
+    needs_review instead of writing it (2026-09-08 fix; found live: "James
+    Education Fund" crashed this whole sync with a bare KeyError)."""
     if section in ("income", "savings"):
-        return (INCOME_SAVINGS_COLUMN, INCOME_SAVINGS_ROWS[line_item])
-    row_num = EXPENSE_OTHER_ROWS[section] if line_item == "Other" else EXPENSE_ROWS[line_item]
-    return (EXPENSE_COLUMN, row_num)
+        row = INCOME_SAVINGS_ROWS.get(line_item)
+        return (INCOME_SAVINGS_COLUMN, row) if row is not None else None
+    row_num = EXPENSE_OTHER_ROWS.get(section) if line_item == "Other" else EXPENSE_ROWS.get(line_item)
+    return (EXPENSE_COLUMN, row_num) if row_num is not None else None
 
 
 def aggregate_month(df: pd.DataFrame, year_month: str) -> tuple[dict, dict, dict]:
@@ -125,17 +134,25 @@ def aggregate_month(df: pd.DataFrame, year_month: str) -> tuple[dict, dict, dict
 
     cell_values: dict[tuple[str, int], float] = {}
     cell_notes: dict[tuple[str, int], str] = {}
+    needs_review: dict[str, tuple[float, int]] = {
+        category: (sum(t["amount"] for t in items), len(items))
+        for category, items in needs_review_txns.items()
+    }
     for (section, line_item), total in totals.items():
         cell = _line_item_cell(section, line_item)
+        if cell is None:
+            # Custom category with no physical Sheet row -- flag it instead
+            # of silently dropping the money or crashing the sync.
+            items = txns[(section, line_item)]
+            needs_review[f"{section} / {line_item} (custom category, no Sheet row)"] = (
+                sum(t["amount"] for t in items), len(items),
+            )
+            continue
         if cell in STATIC_CELLS or cell in FIXED_CELLS:
             continue
         cell_values[cell] = round(total, 2)
         cell_notes[cell] = budget_aggregate.format_cell_note(txns[(section, line_item)])
 
-    needs_review = {
-        category: (sum(t["amount"] for t in items), len(items))
-        for category, items in needs_review_txns.items()
-    }
     return cell_values, cell_notes, needs_review
 
 
