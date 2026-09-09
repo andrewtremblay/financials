@@ -8,7 +8,7 @@ import pytest
 
 import custom_categories
 import sheets_sync
-from sheets_sync import _line_item_cell, aggregate_month
+from sheets_sync import _all_line_item_cells, _line_item_cell, aggregate_month, aggregate_year
 
 
 @pytest.fixture(autouse=True)
@@ -81,3 +81,55 @@ class TestAggregateMonthWithCustomCategories:
         cell_values, cell_notes, needs_review = aggregate_month(df, "2026-07")
         assert len(cell_values) == 1
         assert needs_review == {}
+
+
+class FakeWorksheet:
+    """Minimal stand-in for a gspread Worksheet -- only what aggregate_year's
+    _read_tab_values needs: batch_get(refs) -> [[[value]] or [] per ref]."""
+
+    def __init__(self, title, cell_values):
+        self.title = title
+        self.cell_values = cell_values
+
+    def batch_get(self, refs, value_render_option=None):
+        return [[[self.cell_values[ref]]] if ref in self.cell_values else [] for ref in refs]
+
+
+class FakeSpreadsheet:
+    def __init__(self, worksheets):
+        self._worksheets = worksheets
+
+    def worksheets(self):
+        return self._worksheets
+
+
+class TestAggregateYear:
+    def test_sums_projected_and_actual_across_months(self):
+        # D4 = Take Home Salary (Zus): row from budget_schema.BUDGET_SECTIONS.
+        july = FakeWorksheet("July 2026", {"C4": 9000, "D4": 9865.38})
+        august = FakeWorksheet("August 2026", {"C4": 9000, "D4": 9865.38})
+        spreadsheet = FakeSpreadsheet([july, august])
+
+        projected_totals, actual_totals, missing_tabs = aggregate_year(spreadsheet, ["2026-07", "2026-08"])
+
+        assert projected_totals[("D", 4)] == 18000.0
+        assert actual_totals[("D", 4)] == 19730.76
+        assert missing_tabs == []
+
+    def test_missing_tab_contributes_zero_and_is_reported(self):
+        august = FakeWorksheet("August 2026", {"D4": 9865.38})
+        spreadsheet = FakeSpreadsheet([august])
+
+        projected_totals, actual_totals, missing_tabs = aggregate_year(spreadsheet, ["2026-07", "2026-08"])
+
+        assert actual_totals[("D", 4)] == 9865.38
+        assert missing_tabs == ["July 2026"]
+
+    def test_covers_every_physical_line_item_cell(self):
+        # Sanity check that the row layout helper used to drive both reading
+        # and writing covers all sections, including "Other" catch-all rows.
+        cells = _all_line_item_cells()
+        labels = {label for label, _, _, _ in cells}
+        assert "Other" in labels
+        assert "Take Home Salary (Zus)" in labels
+        assert "Mortgage (12 Warren)" in labels

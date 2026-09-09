@@ -183,6 +183,113 @@ def month_tab_name(year_month: str) -> str:
     return dt.strftime("%B %Y")
 
 
+def year_tab_name(year_months: list[str]) -> str:
+    start = datetime.strptime(year_months[0], "%Y-%m")
+    end = datetime.strptime(year_months[-1], "%Y-%m")
+    return f"Yearly ({start.strftime('%b %Y')} - {end.strftime('%b %Y')})"
+
+
+def _all_line_item_cells(sections: tuple = budget_schema.BUDGET_SECTIONS) -> list[tuple[str, str, int, str]]:
+    """[(label, actual_col, row, proj_col)] for every physical line-item row
+    on a month tab, including each section's "Other" catch-all row."""
+    cells = []
+    for s in sections:
+        for li in s.line_items:
+            cells.append((li.label, s.actual_column, li.row, s.projected_column))
+        if s.other_row is not None:
+            cells.append(("Other", s.actual_column, s.other_row, s.projected_column))
+    return cells
+
+
+def _read_tab_values(ws, cells: list[tuple[str, str, int, str]]) -> dict[tuple[str, int], tuple[float, float]]:
+    """{(actual_col, row): (projected, actual)} read live from an existing
+    month tab's own cells."""
+    proj_refs = [f"{proj_col}{row}" for _, _, row, proj_col in cells]
+    actual_refs = [f"{col}{row}" for _, col, row, _ in cells]
+    proj_values = ws.batch_get(proj_refs, value_render_option="UNFORMATTED_VALUE")
+    actual_values = ws.batch_get(actual_refs, value_render_option="UNFORMATTED_VALUE")
+    result = {}
+    for (_, col, row, _), pv, av in zip(cells, proj_values, actual_values):
+        proj = pv[0][0] if pv and pv[0] and isinstance(pv[0][0], (int, float)) else 0.0
+        actual = av[0][0] if av and av[0] and isinstance(av[0][0], (int, float)) else 0.0
+        result[(col, row)] = (float(proj), float(actual))
+    return result
+
+
+def aggregate_year(gc_spreadsheet, year_months: list[str]) -> tuple[dict, dict, list]:
+    """Sums PROJECTED and ACTUAL directly from each month's own tab across
+    year_months, rather than re-deriving from Plaid data. This reads the
+    sheet's own already-correct values, which (a) captures any manual edits
+    the user made directly in a month's tab, and (b) naturally handles fixed
+    cells (Apartment Rental Income) and copy-projected cells (Emergency
+    Fund, Retirement, Home Projects, Cleaning Service) correctly with no
+    special-casing, since every real month tab already has the right value
+    baked into both its PROJECTED and ACTUAL columns for those line items.
+
+    Returns (projected_totals, actual_totals, missing_tabs) keyed by
+    (col, row); missing_tabs lists any year_months with no existing tab
+    (contributes $0 for that month, same "missing month = $0" precedent
+    budget_aggregate.aggregate_range_json already uses).
+    """
+    cells = _all_line_item_cells()
+    existing_tabs = {ws.title: ws for ws in gc_spreadsheet.worksheets()}
+    projected_totals: dict[tuple[str, int], float] = defaultdict(float)
+    actual_totals: dict[tuple[str, int], float] = defaultdict(float)
+    missing_tabs = []
+    for ym in year_months:
+        tab_name = month_tab_name(ym)
+        ws = existing_tabs.get(tab_name)
+        if ws is None:
+            missing_tabs.append(tab_name)
+            continue
+        for cell, (proj, actual) in _read_tab_values(ws, cells).items():
+            projected_totals[cell] += proj
+            actual_totals[cell] += actual
+    return (
+        {k: round(v, 2) for k, v in projected_totals.items()},
+        {k: round(v, 2) for k, v in actual_totals.items()},
+        missing_tabs,
+    )
+
+
+def sync_year(gc_spreadsheet, tab_name: str, year_months: list[str], dry_run: bool):
+    if dry_run:
+        print(f"  Would create tab '{tab_name}' (duplicated from '{TEMPLATE_TAB}'), "
+              f"summing {len(year_months)} months: {year_months[0]}..{year_months[-1]}")
+        return
+
+    projected_totals, actual_totals, missing_tabs = aggregate_year(gc_spreadsheet, year_months)
+    if missing_tabs:
+        print(f"  WARNING: no tab found for {missing_tabs} -- contributing $0 for those months")
+
+    existing = [ws.title for ws in gc_spreadsheet.worksheets()]
+    if tab_name in existing:
+        ws = gc_spreadsheet.worksheet(tab_name)
+        action = "Updated"
+    else:
+        template = gc_spreadsheet.worksheet(TEMPLATE_TAB)
+        ws = template.duplicate(insert_sheet_index=0, new_sheet_name=tab_name)
+        action = "Created"
+
+    ws.update_acell("B1", tab_name)
+
+    cells = _all_line_item_cells()
+    updates = []
+    notes_to_set = {}
+    note = (f"Yearly total across {len(year_months)} months ({year_months[0]} to {year_months[-1]}), "
+            f"summed from each month's own PROJECTED/ACTUAL cells.")
+    for _, col, row, proj_col in cells:
+        proj = projected_totals.get((col, row), 0.0)
+        actual = actual_totals.get((col, row), 0.0)
+        updates.append({"range": f"{proj_col}{row}", "values": [[proj]]})
+        updates.append({"range": f"{col}{row}", "values": [[actual]]})
+        notes_to_set[f"{col}{row}"] = note
+    ws.batch_update(updates, value_input_option="USER_ENTERED")
+    ws.update_notes(notes_to_set)
+
+    print(f"  {action} '{tab_name}': wrote {len(cells)} line items summed across {len(year_months)} months")
+
+
 def sync_month(gc_spreadsheet, year_month: str, cell_values: dict, cell_notes: dict, dry_run: bool):
     tab_name = month_tab_name(year_month)
 
@@ -241,15 +348,25 @@ def main():
     parser.add_argument("--months", nargs="*", default=["2026-04", "2026-05", "2026-06", "2026-07"],
                          help="year_month values (YYYY-MM) to create tabs for")
     parser.add_argument("--dry-run", action="store_true", help="preview without writing or needing credentials")
+    parser.add_argument("--year-months", nargs="*", default=None,
+                         help="year_month values (YYYY-MM) to roll up into one yearly tab, "
+                              "summed from each month's own tab -- skips the regular monthly sync")
+    parser.add_argument("--year-tab-name", default=None, help="override the yearly tab's name")
     args = parser.parse_args()
-
-    df = load_all_transactions()
 
     gc_spreadsheet = None
     if not args.dry_run:
         import gspread
         gc = gspread.service_account(filename=CREDENTIALS_PATH)
         gc_spreadsheet = gc.open_by_key(SPREADSHEET_ID)
+
+    if args.year_months:
+        tab_name = args.year_tab_name or year_tab_name(args.year_months)
+        print(f"\n{tab_name}:")
+        sync_year(gc_spreadsheet, tab_name, args.year_months, args.dry_run)
+        return
+
+    df = load_all_transactions()
 
     all_needs_review: dict[str, list] = defaultdict(lambda: [0.0, 0])
     for year_month in args.months:
