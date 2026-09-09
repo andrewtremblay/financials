@@ -186,6 +186,17 @@ def classify_boilerplate(description: str, amount: float | None = None) -> str |
     # WAGES categorization below, which can't see the amount.
     if amount is not None and abs(amount - 250.00) < 0.01 and "insperi payroll" in description.lower():
         return "EMERGENCY_FUND_ZUS"
+    # The main "ASF, DBA INSPERI PAYROLL" deposit (twice-monthly, ~$4880-$4933)
+    # is Zus's take-home paycheck — this employer/payroll-processor pair is
+    # unique to Zus's job; Banneker's real paycheck always arrives under a
+    # completely different description (TRINET HR CORPOR PAYROLL, Gusto,
+    # "6603 BENJAMIN BA DES:...", never "ASF"/"INSPERI"). Without this rule
+    # the LLM had to guess WAGES vs PAYROLL from the description alone every
+    # time and got it wrong on nearly every occurrence except one that had
+    # already been manually corrected (2026-09-09, user-reported: "you put
+    # the zus INSPERI PAYROLL in the wrong place" for August).
+    if "insperi payroll" in description.lower():
+        return "WAGES"
     for pattern, category in BOILERPLATE_CATEGORY_PATTERNS:
         if pattern.search(description):
             return category
