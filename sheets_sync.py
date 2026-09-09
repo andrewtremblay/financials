@@ -201,66 +201,44 @@ def _all_line_item_cells(sections: tuple = budget_schema.BUDGET_SECTIONS) -> lis
     return cells
 
 
-def _read_tab_values(ws, cells: list[tuple[str, str, int, str]]) -> dict[tuple[str, int], tuple[float, float]]:
-    """{(actual_col, row): (projected, actual)} read live from an existing
-    month tab's own cells."""
-    proj_refs = [f"{proj_col}{row}" for _, _, row, proj_col in cells]
-    actual_refs = [f"{col}{row}" for _, col, row, _ in cells]
-    proj_values = ws.batch_get(proj_refs, value_render_option="UNFORMATTED_VALUE")
-    actual_values = ws.batch_get(actual_refs, value_render_option="UNFORMATTED_VALUE")
-    result = {}
-    for (_, col, row, _), pv, av in zip(cells, proj_values, actual_values):
-        proj = pv[0][0] if pv and pv[0] and isinstance(pv[0][0], (int, float)) else 0.0
-        actual = av[0][0] if av and av[0] and isinstance(av[0][0], (int, float)) else 0.0
-        result[(col, row)] = (float(proj), float(actual))
-    return result
+def _sum_formula(col: str, row: int, month_tabs: list[str]) -> str:
+    """A live SUM formula referencing this cell on each month tab (sheet
+    names with spaces need single-quoting in A1 notation)."""
+    refs = ",".join(f"'{tab}'!{col}{row}" for tab in month_tabs)
+    return f"=SUM({refs})"
 
 
-def aggregate_year(gc_spreadsheet, year_months: list[str]) -> tuple[dict, dict, list]:
-    """Sums PROJECTED and ACTUAL directly from each month's own tab across
-    year_months, rather than re-deriving from Plaid data. This reads the
-    sheet's own already-correct values, which (a) captures any manual edits
-    the user made directly in a month's tab, and (b) naturally handles fixed
-    cells (Apartment Rental Income) and copy-projected cells (Emergency
-    Fund, Retirement, Home Projects, Cleaning Service) correctly with no
-    special-casing, since every real month tab already has the right value
-    baked into both its PROJECTED and ACTUAL columns for those line items.
+def year_formulas(gc_spreadsheet, year_months: list[str]) -> tuple[dict[tuple[str, int], str], list[str]]:
+    """Builds live SUM-formula strings referencing each month's own tab cell,
+    rather than computing totals in Python -- so the yearly tab keeps
+    tracking a month tab if it's edited later (a manual correction, a
+    re-sync), instead of going stale like a one-time computed value would.
 
-    Returns (projected_totals, actual_totals, missing_tabs) keyed by
-    (col, row); missing_tabs lists any year_months with no existing tab
-    (contributes $0 for that month, same "missing month = $0" precedent
-    budget_aggregate.aggregate_range_json already uses).
+    Returns ({(col, row): formula}, missing_tabs); missing_tabs lists any
+    year_months with no existing tab (excluded from the formula entirely,
+    rather than referencing a nonexistent sheet and producing #REF!).
     """
-    cells = _all_line_item_cells()
-    existing_tabs = {ws.title: ws for ws in gc_spreadsheet.worksheets()}
-    projected_totals: dict[tuple[str, int], float] = defaultdict(float)
-    actual_totals: dict[tuple[str, int], float] = defaultdict(float)
-    missing_tabs = []
-    for ym in year_months:
-        tab_name = month_tab_name(ym)
-        ws = existing_tabs.get(tab_name)
-        if ws is None:
-            missing_tabs.append(tab_name)
-            continue
-        for cell, (proj, actual) in _read_tab_values(ws, cells).items():
-            projected_totals[cell] += proj
-            actual_totals[cell] += actual
-    return (
-        {k: round(v, 2) for k, v in projected_totals.items()},
-        {k: round(v, 2) for k, v in actual_totals.items()},
-        missing_tabs,
-    )
+    existing_tabs = {ws.title for ws in gc_spreadsheet.worksheets()}
+    month_tabs = [month_tab_name(ym) for ym in year_months]
+    missing_tabs = [t for t in month_tabs if t not in existing_tabs]
+    present_tabs = [t for t in month_tabs if t in existing_tabs]
+
+    formulas: dict[tuple[str, int], str] = {}
+    for _, actual_col, row, proj_col in _all_line_item_cells():
+        formulas[(proj_col, row)] = _sum_formula(proj_col, row, present_tabs)
+        formulas[(actual_col, row)] = _sum_formula(actual_col, row, present_tabs)
+    return formulas, missing_tabs
 
 
 def sync_year(gc_spreadsheet, tab_name: str, year_months: list[str], dry_run: bool):
     if dry_run:
         print(f"  Would create tab '{tab_name}' (duplicated from '{TEMPLATE_TAB}'), "
-              f"summing {len(year_months)} months: {year_months[0]}..{year_months[-1]}")
+              f"with SUM formulas across {len(year_months)} months: {year_months[0]}..{year_months[-1]}")
         return
 
-    projected_totals, actual_totals, missing_tabs = aggregate_year(gc_spreadsheet, year_months)
+    formulas, missing_tabs = year_formulas(gc_spreadsheet, year_months)
     if missing_tabs:
-        print(f"  WARNING: no tab found for {missing_tabs} -- contributing $0 for those months")
+        print(f"  WARNING: no tab found for {missing_tabs} -- excluded from the SUM formulas")
 
     existing = [ws.title for ws in gc_spreadsheet.worksheets()]
     if tab_name in existing:
@@ -273,21 +251,14 @@ def sync_year(gc_spreadsheet, tab_name: str, year_months: list[str], dry_run: bo
 
     ws.update_acell("B1", tab_name)
 
-    cells = _all_line_item_cells()
-    updates = []
-    notes_to_set = {}
-    note = (f"Yearly total across {len(year_months)} months ({year_months[0]} to {year_months[-1]}), "
-            f"summed from each month's own PROJECTED/ACTUAL cells.")
-    for _, col, row, proj_col in cells:
-        proj = projected_totals.get((col, row), 0.0)
-        actual = actual_totals.get((col, row), 0.0)
-        updates.append({"range": f"{proj_col}{row}", "values": [[proj]]})
-        updates.append({"range": f"{col}{row}", "values": [[actual]]})
-        notes_to_set[f"{col}{row}"] = note
+    note = (f"Yearly total across {len(year_months) - len(missing_tabs)} months "
+            f"({year_months[0]} to {year_months[-1]}) -- live SUM formula referencing each month's own tab.")
+    updates = [{"range": f"{col}{row}", "values": [[formula]]} for (col, row), formula in formulas.items()]
+    notes_to_set = {f"{col}{row}": note for (col, row) in formulas}
     ws.batch_update(updates, value_input_option="USER_ENTERED")
     ws.update_notes(notes_to_set)
 
-    print(f"  {action} '{tab_name}': wrote {len(cells)} line items summed across {len(year_months)} months")
+    print(f"  {action} '{tab_name}': wrote {len(formulas)} live SUM formulas across {len(year_months)} months")
 
 
 def sync_month(gc_spreadsheet, year_month: str, cell_values: dict, cell_notes: dict, dry_run: bool):

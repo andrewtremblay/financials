@@ -8,7 +8,7 @@ import pytest
 
 import custom_categories
 import sheets_sync
-from sheets_sync import _all_line_item_cells, _line_item_cell, aggregate_month, aggregate_year
+from sheets_sync import _all_line_item_cells, _line_item_cell, aggregate_month, year_formulas
 
 
 @pytest.fixture(autouse=True)
@@ -84,15 +84,11 @@ class TestAggregateMonthWithCustomCategories:
 
 
 class FakeWorksheet:
-    """Minimal stand-in for a gspread Worksheet -- only what aggregate_year's
-    _read_tab_values needs: batch_get(refs) -> [[[value]] or [] per ref]."""
+    """Minimal stand-in for a gspread Worksheet -- year_formulas only needs
+    the tab's title to decide whether it exists."""
 
-    def __init__(self, title, cell_values):
+    def __init__(self, title):
         self.title = title
-        self.cell_values = cell_values
-
-    def batch_get(self, refs, value_render_option=None):
-        return [[[self.cell_values[ref]]] if ref in self.cell_values else [] for ref in refs]
 
 
 class FakeSpreadsheet:
@@ -103,31 +99,28 @@ class FakeSpreadsheet:
         return self._worksheets
 
 
-class TestAggregateYear:
-    def test_sums_projected_and_actual_across_months(self):
+class TestYearFormulas:
+    def test_builds_sum_formula_referencing_each_month_tab(self):
         # D4 = Take Home Salary (Zus): row from budget_schema.BUDGET_SECTIONS.
-        july = FakeWorksheet("July 2026", {"C4": 9000, "D4": 9865.38})
-        august = FakeWorksheet("August 2026", {"C4": 9000, "D4": 9865.38})
-        spreadsheet = FakeSpreadsheet([july, august])
+        spreadsheet = FakeSpreadsheet([FakeWorksheet("July 2026"), FakeWorksheet("August 2026")])
 
-        projected_totals, actual_totals, missing_tabs = aggregate_year(spreadsheet, ["2026-07", "2026-08"])
+        formulas, missing_tabs = year_formulas(spreadsheet, ["2026-07", "2026-08"])
 
-        assert projected_totals[("D", 4)] == 18000.0
-        assert actual_totals[("D", 4)] == 19730.76
+        assert formulas[("D", 4)] == "=SUM('July 2026'!D4,'August 2026'!D4)"
+        assert formulas[("C", 4)] == "=SUM('July 2026'!C4,'August 2026'!C4)"
         assert missing_tabs == []
 
-    def test_missing_tab_contributes_zero_and_is_reported(self):
-        august = FakeWorksheet("August 2026", {"D4": 9865.38})
-        spreadsheet = FakeSpreadsheet([august])
+    def test_missing_tab_excluded_from_formula_and_reported(self):
+        spreadsheet = FakeSpreadsheet([FakeWorksheet("August 2026")])
 
-        projected_totals, actual_totals, missing_tabs = aggregate_year(spreadsheet, ["2026-07", "2026-08"])
+        formulas, missing_tabs = year_formulas(spreadsheet, ["2026-07", "2026-08"])
 
-        assert actual_totals[("D", 4)] == 9865.38
+        assert formulas[("D", 4)] == "=SUM('August 2026'!D4)"
         assert missing_tabs == ["July 2026"]
 
     def test_covers_every_physical_line_item_cell(self):
-        # Sanity check that the row layout helper used to drive both reading
-        # and writing covers all sections, including "Other" catch-all rows.
+        # Sanity check that the row layout helper used to drive formula
+        # generation covers all sections, including "Other" catch-all rows.
         cells = _all_line_item_cells()
         labels = {label for label, _, _, _ in cells}
         assert "Other" in labels
